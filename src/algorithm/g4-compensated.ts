@@ -83,8 +83,12 @@ export function runG4Compensated(
   nonG4Keys.sort((a, b) => stageOrder(a) - stageOrder(b));
 
   // ========================================
-  // PHASE 1: Apply non-G4 gains with G4 compensation
+  // PHASE 1: Apply non-G4 gains, then G4 compensation sequentially
   // ========================================
+  // For each non-G4 atomic step:
+  //   Step A: Apply the primary gain change (causes EIRP deviation)
+  //   Step B: Apply G4 compensation on each affected channel (corrects deviation)
+  // Each is recorded as a separate transition step.
 
   for (const key of nonG4Keys) {
     const target = targetValues[key];
@@ -97,13 +101,48 @@ export function runG4Compensated(
       const remaining = target - gainValues[key];
       const delta = remaining > 0 ? gran : -gran;
 
-      // Find affected channels
+      // --- Step A: Apply the primary gain change ---
+      const primaryMove: CandidateMove = {
+        steps: [{ gainStageKey: key, delta }],
+        isCompensatingPair: false,
+      };
+
+      let primaryApplied = false;
+
+      if (checkFeasibility(primaryMove, gainValues, channels, gainStages)) {
+        if (checkEirpConstraint(primaryMove, gainValues)) {
+          applyMove(primaryMove, gainValues);
+          const stepData = recordStep(stepCounter, primaryMove, gainValues, channels, gainStages, initialEirp);
+          steps.push(stepData);
+          trackDeviations(stepData);
+          stepCounter++;
+          primaryApplied = true;
+        }
+      }
+
+      if (!primaryApplied) {
+        // Try with relaxed thresholds
+        if (tryRelaxed(primaryMove, gainValues, channels, gainStages)) {
+          violations++;
+          applyMove(primaryMove, gainValues);
+          const stepData = recordStep(stepCounter, primaryMove, gainValues, channels, gainStages, initialEirp);
+          steps.push(stepData);
+          trackDeviations(stepData);
+          stepCounter++;
+          primaryApplied = true;
+        } else {
+          break; // truly stuck
+        }
+      }
+
+      if (!primaryApplied || stepCounter >= params.maxIterations) break;
+
+      // --- Step B: Apply G4 compensations sequentially (one per affected channel) ---
       const affectedChannelIds = couplingMap.get(key) || [];
 
-      // Build the composite move: primary step + G4 compensations
-      const moveSteps = [{ gainStageKey: key, delta }];
-
       for (const chId of affectedChannelIds) {
+        if (stepCounter >= params.maxIterations) break;
+
         const g4Key = serializeGainStageId({ type: 'G4', channelId: chId });
         if (!g4Keys.has(g4Key)) continue;
 
@@ -111,93 +150,38 @@ export function runG4Compensated(
         if (!g4Gran) continue;
 
         // Desired compensation: oppose the EIRP change caused by the primary step
-        // The primary step changes EIRP by +delta, so we want G4 to change by -delta
-        // Quantize to G4 granularity: pick the closest multiple
         const desiredComp = -delta;
         const compSteps = Math.round(desiredComp / g4Gran);
         const actualComp = compSteps * g4Gran;
 
-        if (Math.abs(actualComp) >= g4Gran * 0.5) {
-          moveSteps.push({ gainStageKey: g4Key, delta: actualComp });
-        }
-      }
+        if (Math.abs(actualComp) < g4Gran * 0.5) continue;
 
-      const move: CandidateMove = {
-        steps: moveSteps,
-        isCompensatingPair: moveSteps.length > 1,
-      };
+        const compMove: CandidateMove = {
+          steps: [{ gainStageKey: g4Key, delta: actualComp }],
+          isCompensatingPair: false,
+        };
 
-      // Check feasibility
-      const feasible = checkFeasibility(move, gainValues, channels, gainStages);
-
-      if (feasible) {
-        // Check EIRP deviation constraint if set
-        let eirpOk = true;
-        if (params.maxEirpDeviation !== null) {
-          const tempGains = { ...gainValues };
-          for (const s of move.steps) {
-            tempGains[s.gainStageKey] = (tempGains[s.gainStageKey] ?? 0) + s.delta;
-          }
-          const eirp = computeAllChannelEirp(channels, tempGains);
-          for (const ch of channels) {
-            if (Math.abs(eirp[ch.id] - initialEirp[ch.id]) > params.maxEirpDeviation + 0.001) {
-              eirpOk = false;
-              break;
-            }
+        if (checkFeasibility(compMove, gainValues, channels, gainStages)) {
+          if (checkEirpConstraint(compMove, gainValues)) {
+            applyMove(compMove, gainValues);
+            const stepData = recordStep(stepCounter, compMove, gainValues, channels, gainStages, initialEirp);
+            steps.push(stepData);
+            trackDeviations(stepData);
+            stepCounter++;
+            continue;
           }
         }
 
-        if (eirpOk) {
-          applyMove(move, gainValues);
-          const stepData = recordStep(stepCounter, move, gainValues, channels, gainStages, initialEirp);
+        // If G4 compensation is infeasible, try relaxed
+        if (tryRelaxed(compMove, gainValues, channels, gainStages)) {
+          violations++;
+          applyMove(compMove, gainValues);
+          const stepData = recordStep(stepCounter, compMove, gainValues, channels, gainStages, initialEirp);
           steps.push(stepData);
           trackDeviations(stepData);
           stepCounter++;
-          continue;
         }
-      }
-
-      // If pair not feasible, try just the primary step alone
-      const singleMove: CandidateMove = {
-        steps: [{ gainStageKey: key, delta }],
-        isCompensatingPair: false,
-      };
-
-      if (checkFeasibility(singleMove, gainValues, channels, gainStages)) {
-        let eirpOk = true;
-        if (params.maxEirpDeviation !== null) {
-          const tempGains = { ...gainValues };
-          tempGains[key] = (tempGains[key] ?? 0) + delta;
-          const eirp = computeAllChannelEirp(channels, tempGains);
-          for (const ch of channels) {
-            if (Math.abs(eirp[ch.id] - initialEirp[ch.id]) > params.maxEirpDeviation + 0.001) {
-              eirpOk = false;
-              break;
-            }
-          }
-        }
-
-        if (eirpOk) {
-          applyMove(singleMove, gainValues);
-          const stepData = recordStep(stepCounter, singleMove, gainValues, channels, gainStages, initialEirp);
-          steps.push(stepData);
-          trackDeviations(stepData);
-          stepCounter++;
-          continue;
-        }
-      }
-
-      // Deadlock: try relaxed thresholds
-      violations++;
-      const relaxedMove = tryRelaxed(singleMove, gainValues, channels, gainStages);
-      if (relaxedMove) {
-        applyMove(singleMove, gainValues);
-        const stepData = recordStep(stepCounter, singleMove, gainValues, channels, gainStages, initialEirp);
-        steps.push(stepData);
-        trackDeviations(stepData);
-        stepCounter++;
-      } else {
-        break; // truly stuck
+        // If even relaxed fails, skip this compensation (G4 will be corrected in Phase 2)
       }
     }
 
@@ -328,6 +312,21 @@ export function runG4Compensated(
   };
 
   // --- helpers ---
+
+  function checkEirpConstraint(move: CandidateMove, currentGains: Record<string, number>): boolean {
+    if (params.maxEirpDeviation === null) return true;
+    const tempGains = { ...currentGains };
+    for (const s of move.steps) {
+      tempGains[s.gainStageKey] = (tempGains[s.gainStageKey] ?? 0) + s.delta;
+    }
+    const eirp = computeAllChannelEirp(channels, tempGains);
+    for (const ch of channels) {
+      if (Math.abs(eirp[ch.id] - initialEirp[ch.id]) > params.maxEirpDeviation! + 0.001) {
+        return false;
+      }
+    }
+    return true;
+  }
 
   function trackDeviations(step: TransitionStep) {
     for (const dev of Object.values(step.channelEirpDeviation)) {
