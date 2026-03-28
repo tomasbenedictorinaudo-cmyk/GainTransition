@@ -20,15 +20,17 @@ function getAntennaId(key: string): string {
 }
 
 /**
- * Generate candidate moves respecting the new constraints:
+ * Generate candidate moves respecting the constraints:
  * - Each move changes only one gain stage TYPE (e.g. all G3 gains, or all G4 gains)
  * - For analog stages (G1, G7): one antenna per move (single step)
  * - For digital stages (G2-G6): all instances of that type that have remaining delta
+ * @param excludeTypes - stage types to exclude from candidate generation (e.g. ['G4'])
  */
 export function generateCandidateMoves(
   gainValues: Record<string, number>,
   targetValues: Record<string, number>,
-  granularities: Record<string, number>
+  granularities: Record<string, number>,
+  excludeTypes?: Set<string>
 ): CandidateMove[] {
   const moves: CandidateMove[] = [];
 
@@ -43,8 +45,10 @@ export function generateCandidateMoves(
 
     if (Math.abs(remaining) < gran * 0.01) continue; // already at target
 
-    const delta = remaining > 0 ? gran : -gran;
     const stageType = getStageType(key);
+    if (excludeTypes?.has(stageType)) continue; // skip excluded types
+
+    const delta = remaining > 0 ? gran : -gran;
 
     if (!pendingByType.has(stageType)) {
       pendingByType.set(stageType, []);

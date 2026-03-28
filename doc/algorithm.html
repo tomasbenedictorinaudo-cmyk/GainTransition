@@ -1046,7 +1046,55 @@ Rx Antenna k                                              Tx Antenna m
   <td>Prefer per-channel stage types (G3, G4, G5) before shared stage types (G1, G2, G6, G7) as a tiebreaker</td>
   <td>Payloads with tight shared-stage thresholds; reduces coupling risk by settling per-channel gains before touching shared amplifiers</td>
 </tr>
+<tr>
+  <td><code>g4-compensated</code></td>
+  <td>Two-phase sequential strategy using G4 as the dedicated balancing stage (see &sect;7.6)</td>
+  <td>Payloads where G4 has sufficient range to absorb intermediate EIRP excursions; produces predictable, auditable transition sequences</td>
+</tr>
 </table>
+
+<h3>7.6 G4-Compensated Strategy</h3>
+
+<p>The G4-compensated strategy designates G4 (Tx Channel Gain 1, per-channel digital gain) as the dedicated balancing stage. It operates in two phases:</p>
+
+<h4>Phase 1: Non-G4 gains with sequential G4 correction</h4>
+
+<p>At each iteration, the algorithm:</p>
+<ol>
+  <li>Generates candidates for all stage types <em>except</em> G4.</li>
+  <li>Selects the best candidate using normal scoring.</li>
+  <li>Applies the primary step and G4 correction as <strong>two separate sequential steps</strong>.</li>
+</ol>
+
+<p>The G4 correction opposes the EIRP deviation caused by (or about to be caused by) the primary step. For each affected channel, the correction is:</p>
+
+<span class="eq">&Delta;G4<sub>c</sub> = &minus;round(&Delta;EIRP<sub>c</sub> / &delta;<sub>G4</sub>) &middot; &delta;<sub>G4</sub></span>
+
+<p>Multiple G4 gains update simultaneously within the correction step (G4 is digital, per-channel).</p>
+
+<h4>Compensation timing: Before vs. After</h4>
+
+<table>
+<tr><th>Mode</th><th>Sequence</th><th>Transient EIRP Profile</th></tr>
+<tr>
+  <td><code>after</code> (recommended)</td>
+  <td>Primary step &rarr; G4 correction</td>
+  <td>EIRP deviates for one step (between primary and correction), then returns near initial. More intuitive: cause &rarr; correction.</td>
+</tr>
+<tr>
+  <td><code>before</code></td>
+  <td>G4 pre-correction &rarr; Primary step</td>
+  <td>EIRP deviates in the <em>opposite</em> direction during pre-correction, then returns near initial after the primary step. Double-deviation risk if granularities don&rsquo;t match.</td>
+</tr>
+</table>
+
+<h4>Phase 2: Step G4 to final targets</h4>
+
+<p>After Phase 1, all non-G4 gains are at their target values. Each G4 instance is at an intermediate value that absorbed cumulative compensations. Phase 2 steps G4 to its final target using normal scoring, producing the remaining EIRP deviation.</p>
+
+<div class="warn">
+  <strong>Prerequisite.</strong> G4 must have sufficient range (headroom between current value and hardware threshold) to absorb compensations during Phase 1. If G4 saturates, the algorithm skips that correction, accepting larger EIRP deviation. The maximum G4 excursion during Phase 1 equals the sum of all non-G4 gain deltas on each channel&rsquo;s path.
+</div>
 
 <!-- ============================================================ -->
 <h2 id="s8">8. Deadlock Resolution</h2>

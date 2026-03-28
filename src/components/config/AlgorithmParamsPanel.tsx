@@ -44,8 +44,30 @@ export function AlgorithmParamsPanel({ params, onUpdate }: Props) {
         >
           <option value="greedy">Greedy (minimize cost each step)</option>
           <option value="inner-first">Inner-First (per-channel gains first)</option>
+          <option value="g4-compensated">G4-Compensated (use G4 as balancing stage)</option>
         </select>
       </label>
+
+      {params.strategy === 'g4-compensated' && (
+        <div className="space-y-2">
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-slate-400">G4 Compensation Timing</span>
+            <select
+              value={params.g4CompensationMode}
+              onChange={e => onUpdate({ g4CompensationMode: e.target.value as 'before' | 'after' })}
+              className="bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-sm text-slate-200 focus:border-blue-500 focus:outline-none"
+            >
+              <option value="after">After (primary step → G4 correction)</option>
+              <option value="before">Before (G4 pre-correction → primary step)</option>
+            </select>
+          </label>
+          <div className="p-2 bg-cyan-900/20 border border-cyan-800/30 rounded text-[10px] text-cyan-300/80 space-y-1">
+            <p><strong>Phase 1:</strong> Apply non-G4 gains. Each step is followed{params.g4CompensationMode === 'before' ? ' (preceded)' : ''} by a G4 correction on all affected channels.</p>
+            <p><strong>Phase 2:</strong> Step G4 to final targets (causes EIRP deviation).</p>
+            <p>Multiple G4 gains update simultaneously (digital, per-channel).</p>
+          </div>
+        </div>
+      )}
 
       <div className="space-y-3">
         <label className="flex flex-col gap-1">
