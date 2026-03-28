@@ -44,7 +44,13 @@ export function AlgorithmParamsPanel({ params, onUpdate }: Props) {
         >
           <option value="greedy">Greedy (minimize cost each step)</option>
           <option value="inner-first">Inner-First (per-channel gains first)</option>
+          <option value="g4-compensated">G4-Compensated (use G4 as balancing stage)</option>
         </select>
+        {params.strategy === 'g4-compensated' && (
+          <span className="text-[10px] text-cyan-400/70 mt-0.5">
+            Phase 1: Apply all non-G4 gains with G4 absorbing EIRP delta. Phase 2: Step G4 to final targets.
+          </span>
+        )}
       </label>
 
       <div className="space-y-3">

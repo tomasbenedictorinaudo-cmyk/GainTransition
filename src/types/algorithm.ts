@@ -3,7 +3,7 @@ export interface AlgorithmParams {
   positiveWeight: number; // weight for positive EIRP deviation (default 1.0)
   preferCompensatingPairs: boolean;
   maxIterations: number;
-  strategy: 'greedy' | 'inner-first';
+  strategy: 'greedy' | 'inner-first' | 'g4-compensated';
   maxEirpDeviation: number | null; // hard limit in dB; null = unconstrained
 }
 

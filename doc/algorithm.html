@@ -1186,7 +1186,147 @@ Rx Antenna k                                              Tx Antenna m
   <td>Prefer per-channel gains before shared gains as a tiebreaker</td>
   <td>Payloads with tight shared-stage thresholds; reduces coupling risk by settling per-channel gains before touching shared amplifiers</td>
 </tr>
+<tr>
+  <td><code>g4-compensated</code></td>
+  <td>Two-phase deterministic strategy using G4 as the dedicated balancing stage</td>
+  <td>Payloads where G4 has sufficient range to absorb all intermediate EIRP excursions; produces predictable, auditable transition sequences</td>
+</tr>
 </table>
+
+<h3>7.6 G4-Compensated Strategy &mdash; Detailed Description</h3>
+
+<p>Unlike the general-purpose CCGS strategies (<code>greedy</code>, <code>inner-first</code>) which search over all candidates at each iteration, the <strong>G4-compensated</strong> strategy uses a deterministic two-phase approach that designates G4 (Tx Channel Gain 1) as the sole balancing stage.</p>
+
+<h4>Phase 1: Apply non-G4 gains with G4 compensation</h4>
+
+<p>All gain stages except G4 are stepped toward their targets in a fixed order:</p>
+<ol>
+  <li><strong>Per-channel gains first</strong>: G3 (Rx channel), then G5 (Tx channel 2)&mdash;these affect only one channel each and are safest to adjust.</li>
+  <li><strong>Shared gains second</strong>: G2 (DEMUX), G6 (MUX), G1 (LNA), G7 (HPA)&mdash;ordered from least coupling (subchannel) to most coupling (full antenna).</li>
+</ol>
+
+<p>For each atomic step on a non-G4 stage, the algorithm simultaneously adjusts G4 on every affected channel by the opposite amount (quantized to G4&rsquo;s granularity). This creates a compensating pair that preserves EIRP:</p>
+
+<span class="eq">&Delta;G4<sub>c</sub> = &minus;round(&Delta;g<sub>s</sub> / &delta;<sub>G4</sub>) &middot; &delta;<sub>G4</sub></span>
+
+<p>After Phase 1, all non-G4 gains are at their target values. Each G4 instance is at an <em>intermediate</em> value that absorbed the cumulative compensation.</p>
+
+<h4>Phase 2: Step G4 to final targets</h4>
+
+<p>Each G4 stage is stepped from its intermediate value to its final target. These steps <em>do</em> cause EIRP deviation since there is no remaining gain to compensate. The algorithm selects the G4 step with the lowest asymmetric cost at each iteration, distributing the deviation evenly across channels.</p>
+
+<figure>
+<svg class="svg-diagram" viewBox="0 0 820 360" xmlns="http://www.w3.org/2000/svg" font-family="Inter, system-ui, sans-serif">
+  <defs>
+    <marker id="ah6" markerWidth="9" markerHeight="6" refX="9" refY="3" orient="auto"><polygon points="0 0, 9 3, 0 6" fill="#334155"/></marker>
+    <marker id="ah6g" markerWidth="9" markerHeight="6" refX="9" refY="3" orient="auto"><polygon points="0 0, 9 3, 0 6" fill="#059669"/></marker>
+  </defs>
+
+  <!-- Phase 1 box -->
+  <rect x="20" y="20" width="380" height="320" rx="10" fill="none" stroke="#2563eb" stroke-width="2"/>
+  <text x="210" y="44" text-anchor="middle" font-size="12" fill="#1e40af" font-weight="700">PHASE 1: Non-G4 gains + G4 compensation</text>
+
+  <!-- Stage order -->
+  <rect x="40" y="60" width="100" height="36" rx="6" fill="#d1fae5" stroke="#059669" stroke-width="1.2"/>
+  <text x="90" y="77" text-anchor="middle" font-size="9" fill="#065f46" font-weight="700">G3 (per-ch)</text>
+  <text x="90" y="89" text-anchor="middle" font-size="8" fill="#334155">Rx channel</text>
+
+  <line x1="140" y1="78" x2="156" y2="78" stroke="#334155" stroke-width="1" marker-end="url(#ah6)"/>
+
+  <rect x="162" y="60" width="100" height="36" rx="6" fill="#d1fae5" stroke="#059669" stroke-width="1.2"/>
+  <text x="212" y="77" text-anchor="middle" font-size="9" fill="#065f46" font-weight="700">G5 (per-ch)</text>
+  <text x="212" y="89" text-anchor="middle" font-size="8" fill="#334155">Tx channel 2</text>
+
+  <line x1="262" y1="78" x2="278" y2="78" stroke="#334155" stroke-width="1" marker-end="url(#ah6)"/>
+
+  <rect x="284" y="60" width="100" height="36" rx="6" fill="#dbeafe" stroke="#2563eb" stroke-width="1.2"/>
+  <text x="334" y="77" text-anchor="middle" font-size="9" fill="#1e40af" font-weight="700">G2,G6,G1,G7</text>
+  <text x="334" y="89" text-anchor="middle" font-size="8" fill="#334155">shared gains</text>
+
+  <!-- Arrow down to the per-step illustration -->
+  <line x1="210" y1="96" x2="210" y2="116" stroke="#334155" stroke-width="1" marker-end="url(#ah6)"/>
+
+  <!-- Per-step detail -->
+  <text x="210" y="132" text-anchor="middle" font-size="10" fill="#0f172a" font-weight="600">For each atomic step on stage s:</text>
+
+  <rect x="40" y="142" width="340" height="70" rx="6" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+
+  <rect x="55" y="152" width="150" height="24" rx="4" fill="#fefce8" stroke="#ca8a04" stroke-width="1"/>
+  <text x="130" y="168" text-anchor="middle" font-size="9" fill="#92400e" font-weight="600">Step: Δg_s = ±δ_s</text>
+
+  <text x="220" y="168" text-anchor="middle" font-size="10" fill="#0f172a" font-weight="700">+</text>
+
+  <rect x="235" y="152" width="130" height="24" rx="4" fill="#ecfdf5" stroke="#059669" stroke-width="1"/>
+  <text x="300" y="168" text-anchor="middle" font-size="9" fill="#065f46" font-weight="600">G4 offset: −Δg_s</text>
+
+  <text x="210" y="200" text-anchor="middle" font-size="9" fill="#64748b">Net EIRP impact ≈ 0 (bounded by granularity diff)</text>
+
+  <!-- G4 state after phase 1 -->
+  <rect x="40" y="230" width="340" height="44" rx="6" fill="#eff6ff" stroke="#2563eb" stroke-width="1"/>
+  <text x="210" y="248" text-anchor="middle" font-size="10" fill="#1e40af" font-weight="600">After Phase 1:</text>
+  <text x="210" y="264" text-anchor="middle" font-size="9" fill="#334155">All non-G4 at target · G4 at intermediate value (absorbed Σ compensations)</text>
+
+  <!-- Phase 1 EIRP indicator -->
+  <rect x="40" y="286" width="340" height="36" rx="6" fill="#d1fae5" stroke="#059669" stroke-width="1.2"/>
+  <text x="210" y="304" text-anchor="middle" font-size="9" fill="#065f46" font-weight="600">EIRP deviation during Phase 1: ≤ max granularity residual</text>
+  <text x="210" y="316" text-anchor="middle" font-size="8" fill="#334155">Typically 0.00–0.25 dB per channel</text>
+
+  <!-- Phase 2 box -->
+  <rect x="420" y="20" width="380" height="320" rx="10" fill="none" stroke="#7c3aed" stroke-width="2"/>
+  <text x="610" y="44" text-anchor="middle" font-size="12" fill="#581c87" font-weight="700">PHASE 2: Step G4 to final targets</text>
+
+  <!-- Description -->
+  <rect x="440" y="60" width="340" height="56" rx="6" fill="#faf5ff" stroke="#7c3aed" stroke-width="1"/>
+  <text x="610" y="80" text-anchor="middle" font-size="10" fill="#0f172a" font-weight="600">For each iteration:</text>
+  <text x="610" y="96" text-anchor="middle" font-size="9" fill="#334155">Pick G4 step with lowest asymmetric cost</text>
+  <text x="610" y="108" text-anchor="middle" font-size="9" fill="#334155">(distributes deviation evenly across channels)</text>
+
+  <!-- G4 steps illustration -->
+  <rect x="440" y="128" width="340" height="86" rx="6" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+
+  <text x="470" y="148" font-size="9" fill="#334155" font-weight="600">G4 (CH-1):</text>
+  <rect x="560" y="136" width="80" height="16" rx="3" fill="#dbeafe" stroke="#2563eb" stroke-width="0.8"/>
+  <text x="600" y="148" text-anchor="middle" font-size="8" fill="#1e40af">intermediate</text>
+  <text x="660" y="148" font-size="9" fill="#334155">→</text>
+  <rect x="680" y="136" width="60" height="16" rx="3" fill="#d1fae5" stroke="#059669" stroke-width="0.8"/>
+  <text x="710" y="148" text-anchor="middle" font-size="8" fill="#065f46">target</text>
+
+  <text x="470" y="172" font-size="9" fill="#334155" font-weight="600">G4 (CH-2):</text>
+  <rect x="560" y="160" width="80" height="16" rx="3" fill="#dbeafe" stroke="#2563eb" stroke-width="0.8"/>
+  <text x="600" y="172" text-anchor="middle" font-size="8" fill="#1e40af">intermediate</text>
+  <text x="660" y="172" font-size="9" fill="#334155">→</text>
+  <rect x="680" y="160" width="60" height="16" rx="3" fill="#d1fae5" stroke="#059669" stroke-width="0.8"/>
+  <text x="710" y="172" text-anchor="middle" font-size="8" fill="#065f46">target</text>
+
+  <text x="470" y="196" font-size="9" fill="#334155" font-weight="600">G4 (CH-N):</text>
+  <rect x="560" y="184" width="80" height="16" rx="3" fill="#dbeafe" stroke="#2563eb" stroke-width="0.8"/>
+  <text x="600" y="196" text-anchor="middle" font-size="8" fill="#1e40af">intermediate</text>
+  <text x="660" y="196" font-size="9" fill="#334155">→</text>
+  <rect x="680" y="184" width="60" height="16" rx="3" fill="#d1fae5" stroke="#059669" stroke-width="0.8"/>
+  <text x="710" y="196" text-anchor="middle" font-size="8" fill="#065f46">target</text>
+
+  <!-- Phase 2 EIRP indicator -->
+  <rect x="440" y="230" width="340" height="44" rx="6" fill="#fefce8" stroke="#ca8a04" stroke-width="1.2"/>
+  <text x="610" y="248" text-anchor="middle" font-size="9" fill="#92400e" font-weight="600">EIRP deviation during Phase 2: Σ remaining G4 delta</text>
+  <text x="610" y="264" text-anchor="middle" font-size="8" fill="#334155">Deviation = G4_intermediate − G4_target per channel</text>
+
+  <!-- Final state -->
+  <rect x="440" y="286" width="340" height="36" rx="6" fill="#d1fae5" stroke="#059669" stroke-width="1.2"/>
+  <text x="610" y="308" text-anchor="middle" font-size="10" fill="#065f46" font-weight="700">All gains at target · EIRP deviation = 0</text>
+
+  <!-- Arrow between phases -->
+  <line x1="400" y1="180" x2="420" y2="180" stroke="#334155" stroke-width="2" marker-end="url(#ah6)"/>
+</svg>
+<figcaption>Figure 6. G4-Compensated strategy: Phase 1 applies all non-G4 gains with G4 absorbing each delta, keeping EIRP near-constant. Phase 2 steps G4 to its final target, producing bounded deviation.</figcaption>
+</figure>
+
+<div class="note">
+  <strong>Key advantage.</strong> The G4-compensated strategy produces a <em>deterministic, auditable</em> transition sequence. The order of operations is fixed, making it predictable and reproducible regardless of scoring parameters. All EIRP deviation is concentrated in Phase 2, where only G4 changes&mdash;making the impact on each channel isolated and easy to verify.
+</div>
+
+<div class="warn">
+  <strong>Prerequisite.</strong> G4 must have sufficient range (difference between its current value and the hardware threshold) to absorb the cumulative compensations during Phase 1. If G4 saturates (hits its threshold) before Phase 1 completes, the algorithm falls back to uncompensated single steps, accepting larger EIRP deviation. The maximum G4 excursion during Phase 1 equals the sum of all non-G4 gain changes on each channel&rsquo;s path, which should be compared against G4&rsquo;s available headroom before running.
+</div>
 
 <!-- ============================================================ -->
 <h2 id="s8">8. Deadlock Resolution</h2>
