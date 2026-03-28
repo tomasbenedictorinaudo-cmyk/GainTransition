@@ -19,6 +19,7 @@ export const DEFAULT_PARAMS: AlgorithmParams = {
   preferCompensatingPairs: true,
   maxIterations: 5000,
   strategy: 'greedy',
+  maxEirpDeviation: null,
 };
 
 /**
@@ -75,10 +76,27 @@ export function runCCGS(
 
     if (allCandidates.length === 0) break;
 
-    // Filter feasible
-    const feasible = allCandidates.filter(move =>
+    // Filter feasible (power thresholds)
+    let feasible = allCandidates.filter(move =>
       checkFeasibility(move, gainValues, channels, gainStages)
     );
+
+    // Filter by max EIRP deviation constraint
+    if (params.maxEirpDeviation !== null) {
+      const maxDev = params.maxEirpDeviation;
+      feasible = feasible.filter(move => {
+        const tempGains = { ...gainValues };
+        for (const step of move.steps) {
+          tempGains[step.gainStageKey] = (tempGains[step.gainStageKey] ?? 0) + step.delta;
+        }
+        const eirp = computeAllChannelEirp(channels, tempGains);
+        for (const ch of channels) {
+          const dev = Math.abs(eirp[ch.id] - initialEirp[ch.id]);
+          if (dev > maxDev + 0.001) return false;
+        }
+        return true;
+      });
+    }
 
     if (feasible.length === 0) {
       // No feasible move — try just single steps with relaxed threshold (allow 1dB over)

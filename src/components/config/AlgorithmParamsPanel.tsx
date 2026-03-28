@@ -47,6 +47,41 @@ export function AlgorithmParamsPanel({ params, onUpdate }: Props) {
         </select>
       </label>
 
+      <div className="space-y-3">
+        <label className="flex flex-col gap-1">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-slate-400">Max EIRP Deviation (dB)</span>
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={params.maxEirpDeviation !== null}
+                onChange={e => onUpdate({ maxEirpDeviation: e.target.checked ? 1.0 : null })}
+                className="rounded border-slate-600 bg-slate-700 text-blue-500 focus:ring-blue-500"
+              />
+              <span className="text-[10px] text-slate-500">Enable</span>
+            </label>
+          </div>
+          <input
+            type="number"
+            value={params.maxEirpDeviation ?? ''}
+            placeholder="Unconstrained"
+            step={0.25}
+            min={0}
+            disabled={params.maxEirpDeviation === null}
+            onChange={e => {
+              const val = parseFloat(e.target.value);
+              onUpdate({ maxEirpDeviation: isNaN(val) ? null : Math.max(0, val) });
+            }}
+            className="bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-sm text-slate-200 focus:border-blue-500 focus:outline-none disabled:opacity-40 disabled:cursor-not-allowed"
+          />
+          {params.maxEirpDeviation !== null && (
+            <span className="text-[10px] text-amber-400/70">
+              Hard constraint: rejects any move exceeding &plusmn;{params.maxEirpDeviation} dB. May prevent convergence if too tight.
+            </span>
+          )}
+        </label>
+      </div>
+
       <div className="grid grid-cols-2 gap-3">
         <label className="flex items-center gap-2 cursor-pointer">
           <input

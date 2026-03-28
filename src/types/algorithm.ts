@@ -4,6 +4,7 @@ export interface AlgorithmParams {
   preferCompensatingPairs: boolean;
   maxIterations: number;
   strategy: 'greedy' | 'inner-first';
+  maxEirpDeviation: number | null; // hard limit in dB; null = unconstrained
 }
 
 export interface AtomicStep {
