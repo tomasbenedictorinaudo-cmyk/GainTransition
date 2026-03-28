@@ -10,29 +10,76 @@ export function AlgorithmParamsPanel({ params, onUpdate }: Props) {
     <div className="space-y-3">
       <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">Algorithm Parameters</h3>
 
-      <div className="grid grid-cols-2 gap-3">
-        <label className="flex flex-col gap-1">
-          <span className="text-xs text-slate-400">Neg. Weight (w-)</span>
-          <input
-            type="number"
-            value={params.negativeWeight}
-            step={0.5}
-            min={0.1}
-            onChange={e => onUpdate({ negativeWeight: parseFloat(e.target.value) || 1 })}
-            className="bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-sm text-slate-200 focus:border-blue-500 focus:outline-none"
-          />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-xs text-slate-400">Pos. Weight (w+)</span>
-          <input
-            type="number"
-            value={params.positiveWeight}
-            step={0.5}
-            min={0.1}
-            onChange={e => onUpdate({ positiveWeight: parseFloat(e.target.value) || 1 })}
-            className="bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-sm text-slate-200 focus:border-blue-500 focus:outline-none"
-          />
-        </label>
+      {/* EIRP deviation limits */}
+      <div className="space-y-2">
+        <span className="text-xs text-slate-400 font-medium">Max EIRP Deviation (dB)</span>
+
+        <div className="grid grid-cols-2 gap-3">
+          <label className="flex flex-col gap-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-red-400">Negative (drop)</span>
+              <label className="flex items-center gap-1 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={params.maxNegativeEirpDeviation !== null}
+                  onChange={e => onUpdate({ maxNegativeEirpDeviation: e.target.checked ? 0.5 : null })}
+                  className="rounded border-slate-600 bg-slate-700 text-red-500 focus:ring-red-500 w-3 h-3"
+                />
+                <span className="text-[9px] text-slate-500">Limit</span>
+              </label>
+            </div>
+            <input
+              type="number"
+              value={params.maxNegativeEirpDeviation ?? ''}
+              placeholder="None"
+              step={0.25}
+              min={0}
+              disabled={params.maxNegativeEirpDeviation === null}
+              onChange={e => {
+                const val = parseFloat(e.target.value);
+                onUpdate({ maxNegativeEirpDeviation: isNaN(val) ? null : Math.max(0, val) });
+              }}
+              className="bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-sm text-slate-200 focus:border-red-500 focus:outline-none disabled:opacity-40 disabled:cursor-not-allowed"
+            />
+          </label>
+
+          <label className="flex flex-col gap-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-amber-400">Positive (rise)</span>
+              <label className="flex items-center gap-1 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={params.maxPositiveEirpDeviation !== null}
+                  onChange={e => onUpdate({ maxPositiveEirpDeviation: e.target.checked ? 1.0 : null })}
+                  className="rounded border-slate-600 bg-slate-700 text-amber-500 focus:ring-amber-500 w-3 h-3"
+                />
+                <span className="text-[9px] text-slate-500">Limit</span>
+              </label>
+            </div>
+            <input
+              type="number"
+              value={params.maxPositiveEirpDeviation ?? ''}
+              placeholder="None"
+              step={0.25}
+              min={0}
+              disabled={params.maxPositiveEirpDeviation === null}
+              onChange={e => {
+                const val = parseFloat(e.target.value);
+                onUpdate({ maxPositiveEirpDeviation: isNaN(val) ? null : Math.max(0, val) });
+              }}
+              className="bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-sm text-slate-200 focus:border-amber-500 focus:outline-none disabled:opacity-40 disabled:cursor-not-allowed"
+            />
+          </label>
+        </div>
+
+        {(params.maxNegativeEirpDeviation !== null || params.maxPositiveEirpDeviation !== null) && (
+          <span className="text-[10px] text-slate-500 block">
+            Hard constraints: rejects any move exceeding
+            {params.maxNegativeEirpDeviation !== null ? ` −${params.maxNegativeEirpDeviation}` : ''}
+            {params.maxNegativeEirpDeviation !== null && params.maxPositiveEirpDeviation !== null ? ' /' : ''}
+            {params.maxPositiveEirpDeviation !== null ? ` +${params.maxPositiveEirpDeviation}` : ''} dB.
+          </span>
+        )}
       </div>
 
       <label className="flex flex-col gap-1">
@@ -68,41 +115,6 @@ export function AlgorithmParamsPanel({ params, onUpdate }: Props) {
           </div>
         </div>
       )}
-
-      <div className="space-y-3">
-        <label className="flex flex-col gap-1">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-400">Max EIRP Deviation (dB)</span>
-            <label className="flex items-center gap-1.5 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={params.maxEirpDeviation !== null}
-                onChange={e => onUpdate({ maxEirpDeviation: e.target.checked ? 1.0 : null })}
-                className="rounded border-slate-600 bg-slate-700 text-blue-500 focus:ring-blue-500"
-              />
-              <span className="text-[10px] text-slate-500">Enable</span>
-            </label>
-          </div>
-          <input
-            type="number"
-            value={params.maxEirpDeviation ?? ''}
-            placeholder="Unconstrained"
-            step={0.25}
-            min={0}
-            disabled={params.maxEirpDeviation === null}
-            onChange={e => {
-              const val = parseFloat(e.target.value);
-              onUpdate({ maxEirpDeviation: isNaN(val) ? null : Math.max(0, val) });
-            }}
-            className="bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-sm text-slate-200 focus:border-blue-500 focus:outline-none disabled:opacity-40 disabled:cursor-not-allowed"
-          />
-          {params.maxEirpDeviation !== null && (
-            <span className="text-[10px] text-amber-400/70">
-              Hard constraint: rejects any move exceeding &plusmn;{params.maxEirpDeviation} dB. May prevent convergence if too tight.
-            </span>
-          )}
-        </label>
-      </div>
 
       <label className="flex flex-col gap-1">
         <span className="text-xs text-slate-400">Max iterations</span>

@@ -15,11 +15,10 @@ import { checkFeasibility } from './feasibility';
 import { scoreCandidate, compareCandidates } from './scoring';
 
 export const DEFAULT_PARAMS: AlgorithmParams = {
-  negativeWeight: 3.0,
-  positiveWeight: 1.0,
+  maxNegativeEirpDeviation: null,
+  maxPositiveEirpDeviation: null,
   maxIterations: 5000,
   strategy: 'greedy',
-  maxEirpDeviation: null,
   g4CompensationMode: 'after',
 };
 
@@ -302,8 +301,10 @@ function filterFeasible(
 ): CandidateMove[] {
   let feasible = candidates.filter(move => checkFeasibility(move, gainValues, channels, gainStages));
 
-  if (params.maxEirpDeviation !== null) {
-    const maxDev = params.maxEirpDeviation;
+  const hasNegLimit = params.maxNegativeEirpDeviation !== null;
+  const hasPosLimit = params.maxPositiveEirpDeviation !== null;
+
+  if (hasNegLimit || hasPosLimit) {
     feasible = feasible.filter(move => {
       const tempGains = { ...gainValues };
       for (const step of move.steps) {
@@ -311,7 +312,9 @@ function filterFeasible(
       }
       const eirp = computeAllChannelEirp(channels, tempGains);
       for (const ch of channels) {
-        if (Math.abs(eirp[ch.id] - initialEirp[ch.id]) > maxDev + 0.001) return false;
+        const dev = eirp[ch.id] - initialEirp[ch.id];
+        if (hasNegLimit && dev < -(params.maxNegativeEirpDeviation! + 0.001)) return false;
+        if (hasPosLimit && dev > params.maxPositiveEirpDeviation! + 0.001) return false;
       }
       return true;
     });
@@ -328,6 +331,9 @@ function filterRelaxed(
   initialEirp: Record<string, number>,
   params: AlgorithmParams
 ): CandidateMove[] {
+  const hasNegLimit = params.maxNegativeEirpDeviation !== null;
+  const hasPosLimit = params.maxPositiveEirpDeviation !== null;
+
   return candidates.filter(move => {
     const tempGains = { ...gainValues };
     for (const step of move.steps) {
@@ -339,10 +345,13 @@ function filterRelaxed(
       if (!stage) continue;
       if (power > stage.upperThreshold + 1.0 || power < stage.lowerThreshold - 1.0) return false;
     }
-    if (params.maxEirpDeviation !== null) {
+    // EIRP deviation limits are never relaxed
+    if (hasNegLimit || hasPosLimit) {
       const eirp = computeAllChannelEirp(channels, tempGains);
       for (const ch of channels) {
-        if (Math.abs(eirp[ch.id] - initialEirp[ch.id]) > params.maxEirpDeviation + 0.001) return false;
+        const dev = eirp[ch.id] - initialEirp[ch.id];
+        if (hasNegLimit && dev < -(params.maxNegativeEirpDeviation! + 0.001)) return false;
+        if (hasPosLimit && dev > params.maxPositiveEirpDeviation! + 0.001) return false;
       }
     }
     return true;

@@ -1,9 +1,8 @@
 export interface AlgorithmParams {
-  negativeWeight: number; // weight for negative EIRP deviation (default 3.0)
-  positiveWeight: number; // weight for positive EIRP deviation (default 1.0)
+  maxNegativeEirpDeviation: number | null; // max allowed negative deviation in dB (e.g. 0.5 means EIRP can drop by 0.5); null = unconstrained
+  maxPositiveEirpDeviation: number | null; // max allowed positive deviation in dB (e.g. 1.0 means EIRP can rise by 1.0); null = unconstrained
   maxIterations: number;
   strategy: 'greedy' | 'inner-first' | 'g4-compensated';
-  maxEirpDeviation: number | null; // hard limit in dB; null = unconstrained
   g4CompensationMode: 'after' | 'before'; // when to apply G4 correction relative to primary step
 }
 
