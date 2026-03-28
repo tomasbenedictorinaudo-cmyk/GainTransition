@@ -10,6 +10,7 @@ import { TransitionSummary } from './components/simulation/TransitionSummary';
 import { EirpChart } from './components/charts/EirpChart';
 import { GainChart } from './components/charts/GainChart';
 import { PowerLevelChart } from './components/charts/PowerLevelChart';
+import { ChannelDetailPanel } from './components/charts/ChannelDetailPanel';
 
 type ConfigTab = 'payload' | 'gains' | 'algorithm';
 
@@ -37,6 +38,7 @@ function App() {
 
   const [configTab, setConfigTab] = useState<ConfigTab>('gains');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-200">
@@ -141,6 +143,37 @@ function App() {
               currentStep={currentStep}
             />
           )}
+
+          {/* Channel detail selector */}
+          {result && result.steps.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-400">Inspect channel:</span>
+              <select
+                value={selectedChannelId ?? ''}
+                onChange={e => setSelectedChannelId(e.target.value || null)}
+                className="bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-slate-200 focus:border-cyan-500 focus:outline-none"
+              >
+                <option value="">All channels (overview)</option>
+                {config.channels.map(ch => (
+                  <option key={ch.id} value={ch.id}>{ch.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Single channel detail panel */}
+          {result && result.steps.length > 0 && selectedChannelId && (() => {
+            const ch = config.channels.find(c => c.id === selectedChannelId);
+            return ch ? (
+              <ChannelDetailPanel
+                result={result}
+                channel={ch}
+                gainStages={config.gainStages}
+                currentStep={currentStep}
+                onClose={() => setSelectedChannelId(null)}
+              />
+            ) : null;
+          })()}
 
           {/* Charts */}
           {result && result.steps.length > 0 && (
