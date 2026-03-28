@@ -89,14 +89,20 @@ export function AlgorithmParamsPanel({ params, onUpdate }: Props) {
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <label className="flex items-center gap-2 cursor-pointer">
+        <label className={`flex items-center gap-2 ${params.strategy === 'g4-compensated' ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}>
           <input
             type="checkbox"
-            checked={params.preferCompensatingPairs}
+            checked={params.strategy === 'g4-compensated' ? true : params.preferCompensatingPairs}
+            disabled={params.strategy === 'g4-compensated'}
             onChange={e => onUpdate({ preferCompensatingPairs: e.target.checked })}
-            className="rounded border-slate-600 bg-slate-700 text-blue-500 focus:ring-blue-500"
+            className="rounded border-slate-600 bg-slate-700 text-blue-500 focus:ring-blue-500 disabled:opacity-40 disabled:cursor-not-allowed"
           />
-          <span className="text-xs text-slate-400">Compensating pairs</span>
+          <div className="flex flex-col">
+            <span className="text-xs text-slate-400">Compensating pairs</span>
+            {params.strategy === 'g4-compensated' && (
+              <span className="text-[9px] text-cyan-400/60">Always on (G4 is the compensator)</span>
+            )}
+          </div>
         </label>
         <label className="flex flex-col gap-1">
           <span className="text-xs text-slate-400">Max iterations</span>
