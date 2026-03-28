@@ -1,9 +1,8 @@
 export interface AlgorithmParams {
   negativeWeight: number; // weight for negative EIRP deviation (default 3.0)
   positiveWeight: number; // weight for positive EIRP deviation (default 1.0)
-  preferCompensatingPairs: boolean;
   maxIterations: number;
-  strategy: 'greedy' | 'inner-first' | 'g4-compensated';
+  strategy: 'greedy' | 'inner-first';
   maxEirpDeviation: number | null; // hard limit in dB; null = unconstrained
 }
 
@@ -12,9 +11,15 @@ export interface AtomicStep {
   delta: number; // +/- granularity
 }
 
+/**
+ * A candidate move contains one or more atomic steps that are applied together
+ * in a single iteration. All steps must belong to the same gain stage type (Gn).
+ * For analog stages (G1, G7): exactly one step (one antenna).
+ * For digital stages (G2-G6): one or more steps (all instances of that stage type).
+ */
 export interface CandidateMove {
   steps: AtomicStep[];
-  isCompensatingPair: boolean;
+  stageType: string; // 'G1' | 'G2' | ... | 'G7' — the gain stage type being changed
 }
 
 export interface TransitionStep {

@@ -47,7 +47,7 @@ export function StepSlider({ result, currentStep, onStepChange }: Props) {
       </div>
       {step && (
         <div className="text-[11px] text-slate-500 font-mono truncate">
-          {step.appliedMove.isCompensatingPair ? '[Pair] ' : ''}{moveDesc}
+          [{step.appliedMove.stageType}] {moveDesc}
         </div>
       )}
     </div>

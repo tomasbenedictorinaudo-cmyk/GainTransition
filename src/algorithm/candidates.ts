@@ -1,16 +1,39 @@
 import type { AtomicStep, CandidateMove } from '../types';
-import type { CouplingMap } from '../core/coupling';
-import { isSharedGain } from '../core/coupling';
+
+/** Gain stage types that are analog (one antenna per iteration) */
+const ANALOG_STAGES = new Set(['G1', 'G7']);
 
 /**
- * Generate all single atomic steps: one per gain stage that still has remaining delta.
+ * Extract the stage type (e.g. 'G1', 'G2', ..., 'G7') from a gain stage key.
+ * Keys follow the pattern "G1:rx0", "G3:ch1", etc.
  */
-export function generateSingleSteps(
+function getStageType(key: string): string {
+  return key.split(':')[0];
+}
+
+/**
+ * Extract the antenna identifier from an analog gain stage key.
+ * G1:rx0 → 'rx0', G7:tx1 → 'tx1'
+ */
+function getAntennaId(key: string): string {
+  return key.split(':')[1];
+}
+
+/**
+ * Generate candidate moves respecting the new constraints:
+ * - Each move changes only one gain stage TYPE (e.g. all G3 gains, or all G4 gains)
+ * - For analog stages (G1, G7): one antenna per move (single step)
+ * - For digital stages (G2-G6): all instances of that type that have remaining delta
+ */
+export function generateCandidateMoves(
   gainValues: Record<string, number>,
   targetValues: Record<string, number>,
   granularities: Record<string, number>
 ): CandidateMove[] {
   const moves: CandidateMove[] = [];
+
+  // Group pending changes by stage type
+  const pendingByType = new Map<string, { key: string; delta: number }[]>();
 
   for (const key of Object.keys(targetValues)) {
     const current = gainValues[key];
@@ -21,88 +44,35 @@ export function generateSingleSteps(
     if (Math.abs(remaining) < gran * 0.01) continue; // already at target
 
     const delta = remaining > 0 ? gran : -gran;
-    moves.push({
-      steps: [{ gainStageKey: key, delta }],
-      isCompensatingPair: false,
-    });
+    const stageType = getStageType(key);
+
+    if (!pendingByType.has(stageType)) {
+      pendingByType.set(stageType, []);
+    }
+    pendingByType.get(stageType)!.push({ key, delta });
   }
 
-  return moves;
-}
-
-/**
- * Generate compensating pairs: a shared gain step bundled with per-channel offsets.
- * For each shared gain change, pair it with opposing per-channel gain changes
- * for all affected channels, so the net EIRP impact is minimized.
- */
-export function generateCompensatingPairs(
-  gainValues: Record<string, number>,
-  targetValues: Record<string, number>,
-  granularities: Record<string, number>,
-  couplingMap: CouplingMap,
-  channelGainChains: Record<string, string[]>
-): CandidateMove[] {
-  const moves: CandidateMove[] = [];
-
-  // For each shared gain that has remaining delta
-  for (const key of Object.keys(targetValues)) {
-    if (!isSharedGain(key)) continue;
-
-    const current = gainValues[key];
-    const target = targetValues[key];
-    const gran = granularities[key];
-    const remaining = target - current;
-
-    if (Math.abs(remaining) < gran * 0.01) continue;
-
-    const sharedDelta = remaining > 0 ? gran : -gran;
-    const affectedChannels = couplingMap.get(key) || [];
-
-    // Find per-channel gains that can compensate
-    // Try G3, G4, G5 for each affected channel
-    const compensatingTypes = ['G3', 'G4', 'G5'];
-
-    for (const compType of compensatingTypes) {
-      const compensatingSteps: AtomicStep[] = [{ gainStageKey: key, delta: sharedDelta }];
-      let allCanCompensate = true;
-
-      for (const channelId of affectedChannels) {
-        const compKey = `${compType}:ch${channelId}`;
-        if (!(compKey in gainValues)) {
-          allCanCompensate = false;
-          break;
-        }
-
-        const compCurrent = gainValues[compKey];
-        const compTarget = targetValues[compKey];
-        const compGran = granularities[compKey];
-        const compDesiredDelta = -sharedDelta; // oppose the shared gain change
-
-        // Check if this compensation is possible (has granularity steps available)
-        // The compensation doesn't need to be toward the target — it just needs to be feasible
-        // But we prefer compensations that also move toward target
-        const compRemaining = compTarget - compCurrent;
-
-        // If the compensation direction aligns with remaining, great
-        // If not, we still allow it but it's less ideal
-        if (Math.abs(compDesiredDelta) < compGran * 0.01) continue;
-
-        // Quantize to granularity
-        const actualDelta = compDesiredDelta > 0
-          ? Math.min(compGran, Math.abs(compDesiredDelta))
-          : -Math.min(compGran, Math.abs(compDesiredDelta));
-
-        // Only add if we're not already at a point where this would overshoot badly
-        // Allow the step if there's remaining in that direction, or if it's small
-        if (Math.abs(compRemaining) >= compGran * 0.01 || Math.abs(actualDelta) <= compGran) {
-          compensatingSteps.push({ gainStageKey: compKey, delta: actualDelta });
-        }
-      }
-
-      if (allCanCompensate && compensatingSteps.length > 1) {
+  // Generate moves per stage type
+  for (const [stageType, pending] of pendingByType) {
+    if (ANALOG_STAGES.has(stageType)) {
+      // Analog: one antenna per move — each pending key is its own candidate
+      for (const { key, delta } of pending) {
         moves.push({
-          steps: compensatingSteps,
-          isCompensatingPair: true,
+          steps: [{ gainStageKey: key, delta }],
+          stageType,
+        });
+      }
+    } else {
+      // Digital: all instances of this stage type move together in one candidate
+      const steps: AtomicStep[] = pending.map(({ key, delta }) => ({
+        gainStageKey: key,
+        delta,
+      }));
+
+      if (steps.length > 0) {
+        moves.push({
+          steps,
+          stageType,
         });
       }
     }

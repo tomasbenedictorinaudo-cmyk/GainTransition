@@ -44,13 +44,7 @@ export function AlgorithmParamsPanel({ params, onUpdate }: Props) {
         >
           <option value="greedy">Greedy (minimize cost each step)</option>
           <option value="inner-first">Inner-First (per-channel gains first)</option>
-          <option value="g4-compensated">G4-Compensated (use G4 as balancing stage)</option>
         </select>
-        {params.strategy === 'g4-compensated' && (
-          <span className="text-[10px] text-cyan-400/70 mt-0.5">
-            Phase 1: Apply all non-G4 gains with G4 absorbing EIRP delta. Phase 2: Step G4 to final targets.
-          </span>
-        )}
       </label>
 
       <div className="space-y-3">
@@ -88,33 +82,23 @@ export function AlgorithmParamsPanel({ params, onUpdate }: Props) {
         </label>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <label className={`flex items-center gap-2 ${params.strategy === 'g4-compensated' ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}>
-          <input
-            type="checkbox"
-            checked={params.strategy === 'g4-compensated' ? true : params.preferCompensatingPairs}
-            disabled={params.strategy === 'g4-compensated'}
-            onChange={e => onUpdate({ preferCompensatingPairs: e.target.checked })}
-            className="rounded border-slate-600 bg-slate-700 text-blue-500 focus:ring-blue-500 disabled:opacity-40 disabled:cursor-not-allowed"
-          />
-          <div className="flex flex-col">
-            <span className="text-xs text-slate-400">Compensating pairs</span>
-            {params.strategy === 'g4-compensated' && (
-              <span className="text-[9px] text-cyan-400/60">Always on (G4 is the compensator)</span>
-            )}
-          </div>
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-xs text-slate-400">Max iterations</span>
-          <input
-            type="number"
-            value={params.maxIterations}
-            step={100}
-            min={10}
-            onChange={e => onUpdate({ maxIterations: parseInt(e.target.value) || 1000 })}
-            className="bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-sm text-slate-200 focus:border-blue-500 focus:outline-none"
-          />
-        </label>
+      <label className="flex flex-col gap-1">
+        <span className="text-xs text-slate-400">Max iterations</span>
+        <input
+          type="number"
+          value={params.maxIterations}
+          step={100}
+          min={10}
+          onChange={e => onUpdate({ maxIterations: parseInt(e.target.value) || 1000 })}
+          className="bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-sm text-slate-200 focus:border-blue-500 focus:outline-none"
+        />
+      </label>
+
+      <div className="mt-2 p-2 bg-slate-800/50 rounded text-[10px] text-slate-500 space-y-1">
+        <p><strong className="text-slate-400">Move rules:</strong></p>
+        <p>Each iteration changes one gain stage type (Gn).</p>
+        <p>Analog (G1, G7): one antenna per step.</p>
+        <p>Digital (G2–G6): all instances move together.</p>
       </div>
     </div>
   );

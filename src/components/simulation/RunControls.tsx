@@ -39,7 +39,7 @@ function exportCSV(result: TransitionResult, channels: Channel[]) {
   for (let i = 0; i < result.steps.length; i++) {
     const step = result.steps[i];
     const move = step.appliedMove;
-    const moveType = move.isCompensatingPair ? 'Pair' : 'Single';
+    const moveType = move.stageType;
     const changed = move.steps
       .map(s => `${getGainStageLabel(s.gainStageKey)} ${s.delta > 0 ? '+' : ''}${s.delta.toFixed(2)}`)
       .join('; ');

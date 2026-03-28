@@ -498,13 +498,21 @@ Rx Antenna k                                              Tx Antenna m
 <p>CCGS is a <strong>greedy iterative algorithm</strong> that constructs the transition sequence one move at a time. At each iteration, it:</p>
 
 <ol>
-  <li><strong>Generates</strong> a set of candidate moves (single atomic steps and compensating pairs).</li>
+  <li><strong>Generates</strong> a set of candidate moves, grouped by gain stage type.</li>
   <li><strong>Filters</strong> candidates for feasibility against all power thresholds.</li>
   <li><strong>Filters</strong> remaining candidates against the optional hard EIRP deviation limit (<code>D<sub>max</sub></code>).</li>
   <li><strong>Scores</strong> feasible candidates using the asymmetric EIRP cost function.</li>
   <li><strong>Selects</strong> and applies the lowest-cost feasible candidate.</li>
   <li><strong>Records</strong> the full system state (gain values, EIRP, power levels) for visualization.</li>
 </ol>
+
+<div class="def">
+  <strong>Move constraint.</strong> Each iteration changes exactly one gain stage <em>type</em> (Gn). Within that type:
+  <ul>
+    <li><strong>Analog stages (G1, G7):</strong> only one antenna's gain changes per iteration. G1 and G7 are wideband amplifiers; commanding multiple antennas simultaneously is operationally infeasible.</li>
+    <li><strong>Digital stages (G2&ndash;G6):</strong> all instances of that stage type with remaining delta move together in one atomic iteration. Digital gains can be applied in parallel by the onboard processor.</li>
+  </ul>
+</div>
 
 <p>The algorithm terminates when all gain stages reach their target values, no feasible moves exist, or the iteration limit is reached.</p>
 
@@ -541,27 +549,13 @@ Rx Antenna k                                              Tx Antenna m
   <line x1="410" y1="136" x2="410" y2="160" stroke="#334155" stroke-width="1.2" marker-end="url(#ah2)"/>
   <text x="420" y="152" font-size="9" fill="#334155" font-weight="600">NO</text>
 
-  <!-- Generate singles -->
-  <rect x="170" y="166" width="220" height="40" rx="6" fill="#eff6ff" stroke="#2563eb" stroke-width="1.2"/>
-  <text x="280" y="183" text-anchor="middle" font-size="10" fill="#1e40af" font-weight="600">Generate single steps</text>
-  <text x="280" y="196" text-anchor="middle" font-size="8.5" fill="#334155">For each stage with Δg ≠ 0</text>
+  <!-- Generate stage-grouped candidates -->
+  <rect x="200" y="166" width="420" height="52" rx="6" fill="#eff6ff" stroke="#2563eb" stroke-width="1.2"/>
+  <text x="410" y="183" text-anchor="middle" font-size="10" fill="#1e40af" font-weight="600">Generate stage-grouped candidates</text>
+  <text x="410" y="196" text-anchor="middle" font-size="8.5" fill="#334155">Analog (G1, G7): one antenna per move</text>
+  <text x="410" y="208" text-anchor="middle" font-size="8.5" fill="#334155">Digital (G2&ndash;G6): all instances of type move together</text>
 
-  <!-- Generate pairs -->
-  <rect x="430" y="166" width="220" height="40" rx="6" fill="#eff6ff" stroke="#2563eb" stroke-width="1.2"/>
-  <text x="540" y="183" text-anchor="middle" font-size="10" fill="#1e40af" font-weight="600">Generate compensating pairs</text>
-  <text x="540" y="196" text-anchor="middle" font-size="8.5" fill="#334155">Shared gain + per-ch offsets</text>
-
-  <!-- Arrows from both down to merge -->
-  <line x1="280" y1="206" x2="280" y2="228" stroke="#334155" stroke-width="1.0"/>
-  <line x1="540" y1="206" x2="540" y2="228" stroke="#334155" stroke-width="1.0"/>
-  <line x1="280" y1="228" x2="540" y2="228" stroke="#334155" stroke-width="1.0"/>
-  <line x1="410" y1="228" x2="410" y2="248" stroke="#334155" stroke-width="1.2" marker-end="url(#ah2)"/>
-
-  <!-- Merge box -->
-  <rect x="300" y="254" width="220" height="32" rx="6" fill="#f1f5f9" stroke="#64748b" stroke-width="1"/>
-  <text x="410" y="274" text-anchor="middle" font-size="10" fill="#0f172a" font-weight="600">Candidate pool (singles ∪ pairs)</text>
-
-  <line x1="410" y1="286" x2="410" y2="310" stroke="#334155" stroke-width="1.2" marker-end="url(#ah2)"/>
+  <line x1="410" y1="218" x2="410" y2="310" stroke="#334155" stroke-width="1.2" marker-end="url(#ah2)"/>
 
   <!-- FILTER PIPELINE -->
   <rect x="120" y="314" width="580" height="170" rx="10" fill="none" stroke="#7c3aed" stroke-width="1.5" stroke-dasharray="5,3"/>
@@ -635,7 +629,7 @@ Rx Antenna k                                              Tx Antenna m
   <!-- TIEBREAK -->
   <rect x="260" y="720" width="300" height="44" rx="6" fill="#fefce8" stroke="#ca8a04" stroke-width="1.2"/>
   <text x="410" y="738" text-anchor="middle" font-size="10" fill="#0f172a" font-weight="600">Apply tiebreakers</text>
-  <text x="410" y="752" text-anchor="middle" font-size="8.5" fill="#334155">Pairs preferred → inner-first → fewer steps</text>
+  <text x="410" y="752" text-anchor="middle" font-size="8.5" fill="#334155">Inner-first (if enabled) → fewer steps</text>
 
   <line x1="410" y1="764" x2="410" y2="786" stroke="#334155" stroke-width="1.2" marker-end="url(#ah2)"/>
 
@@ -661,7 +655,6 @@ Rx Antenna k                                              Tx Antenna m
 <h3>4.3 Pseudocode</h3>
 
 <pre><code>function CCGS(channels, gainStages, params):
-    couplingMap &larr; buildCouplingMap(channels)
     gainValues  &larr; { s.key: s.currentValue for s in gainStages }
     targets     &larr; { s.key: s.targetValue  for s in gainStages }
     initialEirp &larr; computeAllChannelEirp(channels, gainValues)
@@ -671,9 +664,8 @@ Rx Antenna k                                              Tx Antenna m
         if allAtTarget(gainValues, targets):
             break
 
-        singles &larr; generateSingleSteps(gainValues, targets, granularities)
-        pairs   &larr; generateCompensatingPairs(gainValues, targets, granularities, couplingMap)
-        candidates &larr; pairs ++ singles
+        <em>// Each candidate changes one stage type; analog = 1 antenna, digital = all instances</em>
+        candidates &larr; generateCandidateMoves(gainValues, targets, granularities)
 
         feasible &larr; filter(candidates, move &rarr; checkFeasibility(move, gainValues, channels, gainStages))
 
@@ -683,7 +675,7 @@ Rx Antenna k                                              Tx Antenna m
 
         if feasible is empty:
             <em>// Deadlock resolution: relax thresholds by 1 dB</em>
-            feasible &larr; filterRelaxed(singles, gainValues, channels, gainStages)
+            feasible &larr; filterRelaxed(candidates, gainValues, channels, gainStages)
             if feasible is empty: break  <em>// truly stuck</em>
 
         scored &larr; [(move, scoreCandidate(move, gainValues, channels, initialEirp, params)) for move in feasible]
@@ -698,172 +690,41 @@ Rx Antenna k                                              Tx Antenna m
 <!-- ============================================================ -->
 <h2 id="s5">5. Candidate Generation</h2>
 
-<h3>5.1 Single Atomic Steps</h3>
+<h3>5.1 Stage-Grouped Moves</h3>
 
-<p>For each gain stage <em>s</em> where <code>g<sub>s</sub> &ne; g<sub>s</sub><sup>*</sup></code>, a single atomic step is generated:</p>
+<p>Candidate moves are generated by grouping pending gain changes by their stage type (G1&ndash;G7). Each candidate moves gains from exactly <strong>one stage type</strong> per iteration:</p>
+
+<div class="def">
+  <strong>Analog stages (G1, G7):</strong> One candidate is generated per antenna that has remaining delta. Each candidate contains a single atomic step&mdash;the gain change for that one antenna. This reflects the operational constraint that wideband analog amplifiers (LNA, HPA) are commanded per antenna.
+</div>
+
+<div class="def">
+  <strong>Digital stages (G2&ndash;G6):</strong> One candidate is generated per stage type that has remaining delta. The candidate contains atomic steps for <em>all instances</em> of that type that have remaining delta. Digital gains are applied in parallel by the onboard processor, so all G3 gains (for example) move together in one iteration.
+</div>
+
+<p>For each gain stage instance <em>s</em> with <code>g<sub>s</sub> &ne; g<sub>s</sub><sup>*</sup></code>, the atomic step is:</p>
 
 <span class="eq">&Delta;g<sub>s</sub> = sign(g<sub>s</sub><sup>*</sup> &minus; g<sub>s</sub>) &middot; &delta;<sub>s</sub></span>
 
-<p>This produces at most <code>|S|</code> candidate moves per iteration, where <code>|S|</code> is the number of gain stages with remaining delta.</p>
+<h3>5.2 Examples</h3>
 
-<h3>5.2 Compensating Pairs</h3>
+<p>Consider a payload with 2 Rx antennas and 6 channels where G1 on both antennas and G3 on all channels need to change. The candidate pool for one iteration would be:</p>
 
-<p>Compensating pairs are the key mechanism for minimizing EIRP disruption. When a <em>shared</em> gain (G1, G2, G6, G7) must change, it affects all channels flowing through it. A compensating pair bundles this shared gain step with opposing per-channel gain steps that cancel the EIRP impact.</p>
+<table>
+<tr><th>#</th><th>Type</th><th>Candidate</th><th>Steps</th></tr>
+<tr><td>1</td><td>G1</td><td>G1 on Rx0</td><td>1 step (single antenna)</td></tr>
+<tr><td>2</td><td>G1</td><td>G1 on Rx1</td><td>1 step (single antenna)</td></tr>
+<tr><td>3</td><td>G3</td><td>All G3 gains</td><td>6 steps (all channels together)</td></tr>
+</table>
 
-<div class="def">
-  <strong>Definition (Compensating Pair).</strong> A compensating pair for shared stage <em>s</em> is a composite move consisting of:
-  <ol>
-    <li>An atomic step <code>+&delta;<sub>s</sub></code> (or <code>&minus;&delta;<sub>s</sub></code>) on the shared stage.</li>
-    <li>For each affected channel <em>c &isin; &Phi;(s)</em>: an atomic step <code>&minus;&delta;<sub>q</sub></code> (or <code>+&delta;<sub>q</sub></code>) on a per-channel stage <em>q &isin; {G3, G4, G5}</em> of that channel, opposing the shared step.</li>
-  </ol>
-</div>
-
-<p>When the shared and per-channel granularities are equal, the net EIRP change per channel is exactly zero. When granularities differ, the residual is bounded by the granularity difference.</p>
-
-<figure>
-<svg class="svg-diagram" viewBox="0 0 820 380" xmlns="http://www.w3.org/2000/svg" font-family="Inter, system-ui, sans-serif">
-  <defs>
-    <marker id="ah3" markerWidth="9" markerHeight="6" refX="9" refY="3" orient="auto"><polygon points="0 0, 9 3, 0 6" fill="#334155"/></marker>
-    <marker id="ah3up" markerWidth="9" markerHeight="6" refX="9" refY="3" orient="auto"><polygon points="0 0, 9 3, 0 6" fill="#059669"/></marker>
-    <marker id="ah3dn" markerWidth="9" markerHeight="6" refX="9" refY="3" orient="auto"><polygon points="0 0, 9 3, 0 6" fill="#dc2626"/></marker>
-  </defs>
-
-  <!-- Title -->
-  <text x="410" y="22" text-anchor="middle" font-size="12" fill="#0f172a" font-weight="700">Compensating Pair: G1 (shared) + G3 offsets (per-channel)</text>
-
-  <!-- BEFORE state label -->
-  <text x="30" y="60" font-size="11" fill="#64748b" font-weight="700">BEFORE</text>
-
-  <!-- G1 shared box -->
-  <rect x="120" y="45" width="120" height="40" rx="6" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
-  <text x="180" y="63" text-anchor="middle" font-size="10" fill="#1e40af" font-weight="700">G1 (LNA)</text>
-  <text x="180" y="77" text-anchor="middle" font-size="9" fill="#334155">30.0 dB</text>
-
-  <!-- Channels fan out -->
-  <line x1="240" y1="65" x2="290" y2="50" stroke="#334155" stroke-width="1"/>
-  <line x1="240" y1="65" x2="290" y2="80" stroke="#334155" stroke-width="1"/>
-
-  <!-- CH-A before -->
-  <rect x="296" y="34" width="90" height="32" rx="4" fill="#d1fae5" stroke="#059669" stroke-width="1"/>
-  <text x="341" y="48" text-anchor="middle" font-size="9" fill="#065f46" font-weight="600">G3 (CH-A)</text>
-  <text x="341" y="60" text-anchor="middle" font-size="9" fill="#334155">5.0 dB</text>
-
-  <!-- CH-B before -->
-  <rect x="296" y="72" width="90" height="32" rx="4" fill="#d1fae5" stroke="#059669" stroke-width="1"/>
-  <text x="341" y="86" text-anchor="middle" font-size="9" fill="#065f46" font-weight="600">G3 (CH-B)</text>
-  <text x="341" y="98" text-anchor="middle" font-size="9" fill="#334155">5.0 dB</text>
-
-  <!-- EIRP before -->
-  <line x1="386" y1="50" x2="480" y2="50" stroke="#334155" stroke-width="1" marker-end="url(#ah3)"/>
-  <line x1="386" y1="88" x2="480" y2="88" stroke="#334155" stroke-width="1" marker-end="url(#ah3)"/>
-
-  <rect x="486" y="34" width="120" height="32" rx="4" fill="#f1f5f9" stroke="#64748b" stroke-width="1"/>
-  <text x="546" y="48" text-anchor="middle" font-size="9" fill="#334155" font-weight="600">EIRP CH-A</text>
-  <text x="546" y="60" text-anchor="middle" font-size="10" fill="#0f172a" font-weight="700">56.0 dBm</text>
-
-  <rect x="486" y="72" width="120" height="32" rx="4" fill="#f1f5f9" stroke="#64748b" stroke-width="1"/>
-  <text x="546" y="86" text-anchor="middle" font-size="9" fill="#334155" font-weight="600">EIRP CH-B</text>
-  <text x="546" y="98" text-anchor="middle" font-size="10" fill="#0f172a" font-weight="700">56.0 dBm</text>
-
-  <!-- Divider -->
-  <line x1="30" y1="120" x2="790" y2="120" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="4,4"/>
-
-  <!-- NAIVE (single step on G1 only) -->
-  <text x="30" y="152" font-size="11" fill="#dc2626" font-weight="700">NAIVE</text>
-  <text x="30" y="166" font-size="9" fill="#64748b">(G1 only)</text>
-
-  <rect x="120" y="137" width="120" height="40" rx="6" fill="#fecaca" stroke="#dc2626" stroke-width="1.5"/>
-  <text x="180" y="155" text-anchor="middle" font-size="10" fill="#991b1b" font-weight="700">G1 (LNA)</text>
-  <text x="180" y="169" text-anchor="middle" font-size="9" fill="#991b1b">30.5 dB (+0.5)</text>
-
-  <line x1="240" y1="157" x2="290" y2="142" stroke="#334155" stroke-width="1"/>
-  <line x1="240" y1="157" x2="290" y2="172" stroke="#334155" stroke-width="1"/>
-
-  <rect x="296" y="126" width="90" height="32" rx="4" fill="#d1fae5" stroke="#059669" stroke-width="1"/>
-  <text x="341" y="140" text-anchor="middle" font-size="9" fill="#065f46" font-weight="600">G3 (CH-A)</text>
-  <text x="341" y="152" text-anchor="middle" font-size="9" fill="#334155">5.0 dB</text>
-
-  <rect x="296" y="164" width="90" height="32" rx="4" fill="#d1fae5" stroke="#059669" stroke-width="1"/>
-  <text x="341" y="178" text-anchor="middle" font-size="9" fill="#065f46" font-weight="600">G3 (CH-B)</text>
-  <text x="341" y="190" text-anchor="middle" font-size="9" fill="#334155">5.0 dB</text>
-
-  <line x1="386" y1="142" x2="480" y2="142" stroke="#334155" stroke-width="1" marker-end="url(#ah3)"/>
-  <line x1="386" y1="180" x2="480" y2="180" stroke="#334155" stroke-width="1" marker-end="url(#ah3)"/>
-
-  <rect x="486" y="126" width="120" height="32" rx="4" fill="#fef2f2" stroke="#dc2626" stroke-width="1.5"/>
-  <text x="546" y="140" text-anchor="middle" font-size="9" fill="#334155" font-weight="600">EIRP CH-A</text>
-  <text x="546" y="152" text-anchor="middle" font-size="10" fill="#dc2626" font-weight="700">56.5 dBm</text>
-
-  <rect x="486" y="164" width="120" height="32" rx="4" fill="#fef2f2" stroke="#dc2626" stroke-width="1.5"/>
-  <text x="546" y="178" text-anchor="middle" font-size="9" fill="#334155" font-weight="600">EIRP CH-B</text>
-  <text x="546" y="190" text-anchor="middle" font-size="10" fill="#dc2626" font-weight="700">56.5 dBm</text>
-
-  <!-- Impact markers -->
-  <rect x="640" y="135" width="140" height="24" rx="4" fill="#fecaca" stroke="#dc2626" stroke-width="1"/>
-  <text x="710" y="151" text-anchor="middle" font-size="9" fill="#991b1b" font-weight="700">⚠ +0.5 dB deviation</text>
-  <rect x="640" y="173" width="140" height="24" rx="4" fill="#fecaca" stroke="#dc2626" stroke-width="1"/>
-  <text x="710" y="189" text-anchor="middle" font-size="9" fill="#991b1b" font-weight="700">⚠ +0.5 dB deviation</text>
-
-  <!-- Divider -->
-  <line x1="30" y1="212" x2="790" y2="212" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="4,4"/>
-
-  <!-- COMPENSATING PAIR -->
-  <text x="30" y="244" font-size="11" fill="#059669" font-weight="700">PAIR</text>
-  <text x="30" y="258" font-size="9" fill="#64748b">(G1 + G3s)</text>
-
-  <rect x="120" y="229" width="120" height="40" rx="6" fill="#bbf7d0" stroke="#059669" stroke-width="1.5"/>
-  <text x="180" y="247" text-anchor="middle" font-size="10" fill="#065f46" font-weight="700">G1 (LNA)</text>
-  <text x="180" y="261" text-anchor="middle" font-size="9" fill="#065f46">30.5 dB (+0.5)</text>
-
-  <line x1="240" y1="249" x2="290" y2="234" stroke="#334155" stroke-width="1"/>
-  <line x1="240" y1="249" x2="290" y2="264" stroke="#334155" stroke-width="1"/>
-
-  <rect x="296" y="218" width="90" height="32" rx="4" fill="#bbf7d0" stroke="#059669" stroke-width="1.5"/>
-  <text x="341" y="232" text-anchor="middle" font-size="9" fill="#065f46" font-weight="600">G3 (CH-A)</text>
-  <text x="341" y="244" text-anchor="middle" font-size="9" fill="#065f46">4.75 dB (−0.25)</text>
-
-  <rect x="296" y="256" width="90" height="32" rx="4" fill="#bbf7d0" stroke="#059669" stroke-width="1.5"/>
-  <text x="341" y="270" text-anchor="middle" font-size="9" fill="#065f46" font-weight="600">G3 (CH-B)</text>
-  <text x="341" y="282" text-anchor="middle" font-size="9" fill="#065f46">4.75 dB (−0.25)</text>
-
-  <line x1="386" y1="234" x2="480" y2="234" stroke="#334155" stroke-width="1" marker-end="url(#ah3)"/>
-  <line x1="386" y1="272" x2="480" y2="272" stroke="#334155" stroke-width="1" marker-end="url(#ah3)"/>
-
-  <rect x="486" y="218" width="120" height="32" rx="4" fill="#ecfdf5" stroke="#059669" stroke-width="1.5"/>
-  <text x="546" y="232" text-anchor="middle" font-size="9" fill="#334155" font-weight="600">EIRP CH-A</text>
-  <text x="546" y="244" text-anchor="middle" font-size="10" fill="#059669" font-weight="700">56.25 dBm</text>
-
-  <rect x="486" y="256" width="120" height="32" rx="4" fill="#ecfdf5" stroke="#059669" stroke-width="1.5"/>
-  <text x="546" y="270" text-anchor="middle" font-size="9" fill="#334155" font-weight="600">EIRP CH-B</text>
-  <text x="546" y="282" text-anchor="middle" font-size="10" fill="#059669" font-weight="700">56.25 dBm</text>
-
-  <!-- Impact markers -->
-  <rect x="640" y="227" width="140" height="24" rx="4" fill="#d1fae5" stroke="#059669" stroke-width="1"/>
-  <text x="710" y="243" text-anchor="middle" font-size="9" fill="#065f46" font-weight="700">✓ +0.25 dB residual</text>
-  <rect x="640" y="265" width="140" height="24" rx="4" fill="#d1fae5" stroke="#059669" stroke-width="1"/>
-  <text x="710" y="281" text-anchor="middle" font-size="9" fill="#065f46" font-weight="700">✓ +0.25 dB residual</text>
-
-  <!-- Divider -->
-  <line x1="30" y1="305" x2="790" y2="305" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="4,4"/>
-
-  <!-- Explanation -->
-  <text x="410" y="330" text-anchor="middle" font-size="10" fill="#0f172a" font-weight="600">Residual = |δ_shared| − |δ_per-channel| = 0.5 − 0.25 = 0.25 dB</text>
-  <text x="410" y="348" text-anchor="middle" font-size="9.5" fill="#64748b">When granularities match (both 0.25 dB), the residual is exactly 0.00 dB</text>
-  <text x="410" y="366" text-anchor="middle" font-size="9.5" fill="#64748b">The pair makes progress on the shared gain while bounding EIRP disruption</text>
-</svg>
-<figcaption>Figure 3. Compensating pair mechanism: a naive single step on G1 causes +0.5 dB EIRP deviation on all affected channels, while a compensating pair offsets the impact with per-channel G3 adjustments, reducing the residual to the granularity difference.</figcaption>
-</figure>
-
-<p>For each shared stage with remaining delta, the algorithm generates up to 3 compensating pairs (one per compensating gain type G3, G4, G5), provided all affected channels have the corresponding per-channel gain available. This yields at most <code>3 &middot; |S<sub>shared</sub>|</code> additional candidates.</p>
+<p>The algorithm scores all three candidates and selects the one with the lowest asymmetric EIRP cost.</p>
 
 <h3>5.3 Candidate Pool Size</h3>
 
-<p>Per iteration, the total candidate pool is bounded by:</p>
-<span class="eq">|Candidates| &le; |S| + 3 &middot; |S<sub>shared</sub>|</span>
+<p>Per iteration, the candidate pool is bounded by:</p>
+<span class="eq">|Candidates| &le; X + Y + 5</span>
 
-<p>For a payload with <em>C</em> channels, <em>X</em> Rx antennas, <em>Y</em> Tx antennas, and <em>K</em> subchannels:</p>
-<span class="eq">|S| = X + K<sub>rx</sub> + 3C + K<sub>tx</sub> + Y</span>
-<span class="eq">|S<sub>shared</sub>| = X + K<sub>rx</sub> + K<sub>tx</sub> + Y</span>
+<p>where <em>X</em> is the number of Rx antennas (each producing at most one G1 candidate), <em>Y</em> is the number of Tx antennas (each producing at most one G7 candidate), and 5 is the maximum number of digital stage types (G2, G3, G4, G5, G6), each producing at most one grouped candidate. This is significantly smaller than the previous approach and scales with antennas, not channels.</p>
 
 <!-- ============================================================ -->
 <h2 id="s6">6. Feasibility Verification</h2>
@@ -1167,8 +1028,7 @@ Rx Antenna k                                              Tx Antenna m
 <p>When two candidates have the same primary score (within 0.001 tolerance), the following tiebreakers apply in order:</p>
 
 <ol>
-  <li><strong>Compensating pairs preferred</strong> (if <code>preferCompensatingPairs</code> is enabled): Pairs make progress on shared gains while preserving EIRP, advancing the transition more efficiently.</li>
-  <li><strong>Inner gains preferred</strong> (if strategy is <code>inner-first</code>): Per-channel gains (G3, G4, G5) are preferred over shared gains (G1, G2, G6, G7) because they affect fewer channels and are easier to compensate later.</li>
+  <li><strong>Inner gains preferred</strong> (if strategy is <code>inner-first</code>): Per-channel stage types (G3, G4, G5) are preferred over shared stage types (G1, G2, G6, G7) because per-channel moves affect fewer channels.</li>
   <li><strong>Fewer steps preferred</strong>: Simpler moves are preferred to reduce state-space exploration.</li>
 </ol>
 
@@ -1183,150 +1043,10 @@ Rx Antenna k                                              Tx Antenna m
 </tr>
 <tr>
   <td><code>inner-first</code></td>
-  <td>Prefer per-channel gains before shared gains as a tiebreaker</td>
+  <td>Prefer per-channel stage types (G3, G4, G5) before shared stage types (G1, G2, G6, G7) as a tiebreaker</td>
   <td>Payloads with tight shared-stage thresholds; reduces coupling risk by settling per-channel gains before touching shared amplifiers</td>
 </tr>
-<tr>
-  <td><code>g4-compensated</code></td>
-  <td>Two-phase deterministic strategy using G4 as the dedicated balancing stage</td>
-  <td>Payloads where G4 has sufficient range to absorb all intermediate EIRP excursions; produces predictable, auditable transition sequences</td>
-</tr>
 </table>
-
-<h3>7.6 G4-Compensated Strategy &mdash; Detailed Description</h3>
-
-<p>Unlike the general-purpose CCGS strategies (<code>greedy</code>, <code>inner-first</code>) which search over all candidates at each iteration, the <strong>G4-compensated</strong> strategy uses a deterministic two-phase approach that designates G4 (Tx Channel Gain 1) as the sole balancing stage.</p>
-
-<h4>Phase 1: Apply non-G4 gains with G4 compensation</h4>
-
-<p>All gain stages except G4 are stepped toward their targets in a fixed order:</p>
-<ol>
-  <li><strong>Per-channel gains first</strong>: G3 (Rx channel), then G5 (Tx channel 2)&mdash;these affect only one channel each and are safest to adjust.</li>
-  <li><strong>Shared gains second</strong>: G2 (DEMUX), G6 (MUX), G1 (LNA), G7 (HPA)&mdash;ordered from least coupling (subchannel) to most coupling (full antenna).</li>
-</ol>
-
-<p>For each atomic step on a non-G4 stage, the algorithm simultaneously adjusts G4 on every affected channel by the opposite amount (quantized to G4&rsquo;s granularity). This creates a compensating pair that preserves EIRP:</p>
-
-<span class="eq">&Delta;G4<sub>c</sub> = &minus;round(&Delta;g<sub>s</sub> / &delta;<sub>G4</sub>) &middot; &delta;<sub>G4</sub></span>
-
-<p>After Phase 1, all non-G4 gains are at their target values. Each G4 instance is at an <em>intermediate</em> value that absorbed the cumulative compensation.</p>
-
-<h4>Phase 2: Step G4 to final targets</h4>
-
-<p>Each G4 stage is stepped from its intermediate value to its final target. These steps <em>do</em> cause EIRP deviation since there is no remaining gain to compensate. The algorithm selects the G4 step with the lowest asymmetric cost at each iteration, distributing the deviation evenly across channels.</p>
-
-<figure>
-<svg class="svg-diagram" viewBox="0 0 820 360" xmlns="http://www.w3.org/2000/svg" font-family="Inter, system-ui, sans-serif">
-  <defs>
-    <marker id="ah6" markerWidth="9" markerHeight="6" refX="9" refY="3" orient="auto"><polygon points="0 0, 9 3, 0 6" fill="#334155"/></marker>
-    <marker id="ah6g" markerWidth="9" markerHeight="6" refX="9" refY="3" orient="auto"><polygon points="0 0, 9 3, 0 6" fill="#059669"/></marker>
-  </defs>
-
-  <!-- Phase 1 box -->
-  <rect x="20" y="20" width="380" height="320" rx="10" fill="none" stroke="#2563eb" stroke-width="2"/>
-  <text x="210" y="44" text-anchor="middle" font-size="12" fill="#1e40af" font-weight="700">PHASE 1: Non-G4 gains + G4 compensation</text>
-
-  <!-- Stage order -->
-  <rect x="40" y="60" width="100" height="36" rx="6" fill="#d1fae5" stroke="#059669" stroke-width="1.2"/>
-  <text x="90" y="77" text-anchor="middle" font-size="9" fill="#065f46" font-weight="700">G3 (per-ch)</text>
-  <text x="90" y="89" text-anchor="middle" font-size="8" fill="#334155">Rx channel</text>
-
-  <line x1="140" y1="78" x2="156" y2="78" stroke="#334155" stroke-width="1" marker-end="url(#ah6)"/>
-
-  <rect x="162" y="60" width="100" height="36" rx="6" fill="#d1fae5" stroke="#059669" stroke-width="1.2"/>
-  <text x="212" y="77" text-anchor="middle" font-size="9" fill="#065f46" font-weight="700">G5 (per-ch)</text>
-  <text x="212" y="89" text-anchor="middle" font-size="8" fill="#334155">Tx channel 2</text>
-
-  <line x1="262" y1="78" x2="278" y2="78" stroke="#334155" stroke-width="1" marker-end="url(#ah6)"/>
-
-  <rect x="284" y="60" width="100" height="36" rx="6" fill="#dbeafe" stroke="#2563eb" stroke-width="1.2"/>
-  <text x="334" y="77" text-anchor="middle" font-size="9" fill="#1e40af" font-weight="700">G2,G6,G1,G7</text>
-  <text x="334" y="89" text-anchor="middle" font-size="8" fill="#334155">shared gains</text>
-
-  <!-- Arrow down to the per-step illustration -->
-  <line x1="210" y1="96" x2="210" y2="116" stroke="#334155" stroke-width="1" marker-end="url(#ah6)"/>
-
-  <!-- Per-step detail -->
-  <text x="210" y="132" text-anchor="middle" font-size="10" fill="#0f172a" font-weight="600">For each atomic step on stage s:</text>
-
-  <rect x="40" y="142" width="340" height="70" rx="6" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
-
-  <rect x="55" y="152" width="150" height="24" rx="4" fill="#fefce8" stroke="#ca8a04" stroke-width="1"/>
-  <text x="130" y="168" text-anchor="middle" font-size="9" fill="#92400e" font-weight="600">Step: Δg_s = ±δ_s</text>
-
-  <text x="220" y="168" text-anchor="middle" font-size="10" fill="#0f172a" font-weight="700">+</text>
-
-  <rect x="235" y="152" width="130" height="24" rx="4" fill="#ecfdf5" stroke="#059669" stroke-width="1"/>
-  <text x="300" y="168" text-anchor="middle" font-size="9" fill="#065f46" font-weight="600">G4 offset: −Δg_s</text>
-
-  <text x="210" y="200" text-anchor="middle" font-size="9" fill="#64748b">Net EIRP impact ≈ 0 (bounded by granularity diff)</text>
-
-  <!-- G4 state after phase 1 -->
-  <rect x="40" y="230" width="340" height="44" rx="6" fill="#eff6ff" stroke="#2563eb" stroke-width="1"/>
-  <text x="210" y="248" text-anchor="middle" font-size="10" fill="#1e40af" font-weight="600">After Phase 1:</text>
-  <text x="210" y="264" text-anchor="middle" font-size="9" fill="#334155">All non-G4 at target · G4 at intermediate value (absorbed Σ compensations)</text>
-
-  <!-- Phase 1 EIRP indicator -->
-  <rect x="40" y="286" width="340" height="36" rx="6" fill="#d1fae5" stroke="#059669" stroke-width="1.2"/>
-  <text x="210" y="304" text-anchor="middle" font-size="9" fill="#065f46" font-weight="600">EIRP deviation during Phase 1: ≤ max granularity residual</text>
-  <text x="210" y="316" text-anchor="middle" font-size="8" fill="#334155">Typically 0.00–0.25 dB per channel</text>
-
-  <!-- Phase 2 box -->
-  <rect x="420" y="20" width="380" height="320" rx="10" fill="none" stroke="#7c3aed" stroke-width="2"/>
-  <text x="610" y="44" text-anchor="middle" font-size="12" fill="#581c87" font-weight="700">PHASE 2: Step G4 to final targets</text>
-
-  <!-- Description -->
-  <rect x="440" y="60" width="340" height="56" rx="6" fill="#faf5ff" stroke="#7c3aed" stroke-width="1"/>
-  <text x="610" y="80" text-anchor="middle" font-size="10" fill="#0f172a" font-weight="600">For each iteration:</text>
-  <text x="610" y="96" text-anchor="middle" font-size="9" fill="#334155">Pick G4 step with lowest asymmetric cost</text>
-  <text x="610" y="108" text-anchor="middle" font-size="9" fill="#334155">(distributes deviation evenly across channels)</text>
-
-  <!-- G4 steps illustration -->
-  <rect x="440" y="128" width="340" height="86" rx="6" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
-
-  <text x="470" y="148" font-size="9" fill="#334155" font-weight="600">G4 (CH-1):</text>
-  <rect x="560" y="136" width="80" height="16" rx="3" fill="#dbeafe" stroke="#2563eb" stroke-width="0.8"/>
-  <text x="600" y="148" text-anchor="middle" font-size="8" fill="#1e40af">intermediate</text>
-  <text x="660" y="148" font-size="9" fill="#334155">→</text>
-  <rect x="680" y="136" width="60" height="16" rx="3" fill="#d1fae5" stroke="#059669" stroke-width="0.8"/>
-  <text x="710" y="148" text-anchor="middle" font-size="8" fill="#065f46">target</text>
-
-  <text x="470" y="172" font-size="9" fill="#334155" font-weight="600">G4 (CH-2):</text>
-  <rect x="560" y="160" width="80" height="16" rx="3" fill="#dbeafe" stroke="#2563eb" stroke-width="0.8"/>
-  <text x="600" y="172" text-anchor="middle" font-size="8" fill="#1e40af">intermediate</text>
-  <text x="660" y="172" font-size="9" fill="#334155">→</text>
-  <rect x="680" y="160" width="60" height="16" rx="3" fill="#d1fae5" stroke="#059669" stroke-width="0.8"/>
-  <text x="710" y="172" text-anchor="middle" font-size="8" fill="#065f46">target</text>
-
-  <text x="470" y="196" font-size="9" fill="#334155" font-weight="600">G4 (CH-N):</text>
-  <rect x="560" y="184" width="80" height="16" rx="3" fill="#dbeafe" stroke="#2563eb" stroke-width="0.8"/>
-  <text x="600" y="196" text-anchor="middle" font-size="8" fill="#1e40af">intermediate</text>
-  <text x="660" y="196" font-size="9" fill="#334155">→</text>
-  <rect x="680" y="184" width="60" height="16" rx="3" fill="#d1fae5" stroke="#059669" stroke-width="0.8"/>
-  <text x="710" y="196" text-anchor="middle" font-size="8" fill="#065f46">target</text>
-
-  <!-- Phase 2 EIRP indicator -->
-  <rect x="440" y="230" width="340" height="44" rx="6" fill="#fefce8" stroke="#ca8a04" stroke-width="1.2"/>
-  <text x="610" y="248" text-anchor="middle" font-size="9" fill="#92400e" font-weight="600">EIRP deviation during Phase 2: Σ remaining G4 delta</text>
-  <text x="610" y="264" text-anchor="middle" font-size="8" fill="#334155">Deviation = G4_intermediate − G4_target per channel</text>
-
-  <!-- Final state -->
-  <rect x="440" y="286" width="340" height="36" rx="6" fill="#d1fae5" stroke="#059669" stroke-width="1.2"/>
-  <text x="610" y="308" text-anchor="middle" font-size="10" fill="#065f46" font-weight="700">All gains at target · EIRP deviation = 0</text>
-
-  <!-- Arrow between phases -->
-  <line x1="400" y1="180" x2="420" y2="180" stroke="#334155" stroke-width="2" marker-end="url(#ah6)"/>
-</svg>
-<figcaption>Figure 6. G4-Compensated strategy: Phase 1 applies all non-G4 gains with G4 absorbing each delta, keeping EIRP near-constant. Phase 2 steps G4 to its final target, producing bounded deviation.</figcaption>
-</figure>
-
-<div class="note">
-  <strong>Key advantage.</strong> The G4-compensated strategy produces a <em>deterministic, auditable</em> transition sequence. The order of operations is fixed, making it predictable and reproducible regardless of scoring parameters. All EIRP deviation is concentrated in Phase 2, where only G4 changes&mdash;making the impact on each channel isolated and easy to verify.
-</div>
-
-<div class="warn">
-  <strong>Prerequisite.</strong> G4 must have sufficient range (difference between its current value and the hardware threshold) to absorb the cumulative compensations during Phase 1. If G4 saturates (hits its threshold) before Phase 1 completes, the algorithm falls back to uncompensated single steps, accepting larger EIRP deviation. The maximum G4 excursion during Phase 1 equals the sum of all non-G4 gain changes on each channel&rsquo;s path, which should be compared against G4&rsquo;s available headroom before running.
-</div>
 
 <!-- ============================================================ -->
 <h2 id="s8">8. Deadlock Resolution</h2>
@@ -1588,8 +1308,8 @@ Rx Antenna k                                              Tx Antenna m
 </tr>
 <tr>
   <td><code>algorithm/candidates.ts</code></td>
-  <td>Candidate move generation</td>
-  <td><code>generateSingleSteps()</code>, <code>generateCompensatingPairs()</code></td>
+  <td>Stage-grouped candidate move generation</td>
+  <td><code>generateCandidateMoves()</code></td>
 </tr>
 <tr>
   <td><code>algorithm/feasibility.ts</code></td>

@@ -6,17 +6,15 @@ import type {
   Channel,
   GainStage,
 } from '../types';
-import { buildCouplingMap, getChannelGainChain } from '../core/coupling';
 import { computeAllChannelEirp } from '../core/eirp';
 import { computeAllPowerLevels } from '../core/power';
-import { generateSingleSteps, generateCompensatingPairs } from './candidates';
+import { generateCandidateMoves } from './candidates';
 import { checkFeasibility } from './feasibility';
 import { scoreCandidate, compareCandidates } from './scoring';
 
 export const DEFAULT_PARAMS: AlgorithmParams = {
   negativeWeight: 3.0,
   positiveWeight: 1.0,
-  preferCompensatingPairs: true,
   maxIterations: 5000,
   strategy: 'greedy',
   maxEirpDeviation: null,
@@ -24,19 +22,16 @@ export const DEFAULT_PARAMS: AlgorithmParams = {
 
 /**
  * Run the Constrained Coordinated Gain Stepping algorithm.
+ *
+ * Each iteration changes gains from exactly one stage type (Gn).
+ * Analog stages (G1, G7): one antenna per iteration.
+ * Digital stages (G2-G6): all instances of that type move together.
  */
 export function runCCGS(
   channels: Channel[],
   gainStages: Map<string, GainStage>,
   params: AlgorithmParams = DEFAULT_PARAMS
 ): TransitionResult {
-  // Build derived structures
-  const couplingMap = buildCouplingMap(channels);
-  const channelGainChains: Record<string, string[]> = {};
-  for (const ch of channels) {
-    channelGainChains[ch.id] = getChannelGainChain(ch);
-  }
-
   // Initialize gain values and targets
   const gainValues: Record<string, number> = {};
   const targetValues: Record<string, number> = {};
@@ -66,18 +61,13 @@ export function runCCGS(
 
     if (allAtTarget) break;
 
-    // Generate candidates
-    const singleSteps = generateSingleSteps(gainValues, targetValues, granularities);
-    const compensatingPairs = params.preferCompensatingPairs
-      ? generateCompensatingPairs(gainValues, targetValues, granularities, couplingMap, channelGainChains)
-      : [];
+    // Generate candidates (grouped by stage type)
+    const candidates = generateCandidateMoves(gainValues, targetValues, granularities);
 
-    const allCandidates = [...compensatingPairs, ...singleSteps];
-
-    if (allCandidates.length === 0) break;
+    if (candidates.length === 0) break;
 
     // Filter feasible (power thresholds)
-    let feasible = allCandidates.filter(move =>
+    let feasible = candidates.filter(move =>
       checkFeasibility(move, gainValues, channels, gainStages)
     );
 
@@ -99,10 +89,9 @@ export function runCCGS(
     }
 
     if (feasible.length === 0) {
-      // No feasible move — try just single steps with relaxed threshold (allow 1dB over)
-      // This is the deadlock resolution
+      // Deadlock resolution: try with relaxed thresholds (+/- 1dB)
       violations++;
-      const relaxedFeasible = singleSteps.filter(move => {
+      const relaxedFeasible = candidates.filter(move => {
         const tempGains = { ...gainValues };
         for (const step of move.steps) {
           tempGains[step.gainStageKey] = (tempGains[step.gainStageKey] ?? 0) + step.delta;
@@ -115,12 +104,19 @@ export function runCCGS(
             return false;
           }
         }
+        // Still enforce EIRP constraint if set
+        if (params.maxEirpDeviation !== null) {
+          const eirp = computeAllChannelEirp(channels, tempGains);
+          for (const ch of channels) {
+            const dev = Math.abs(eirp[ch.id] - initialEirp[ch.id]);
+            if (dev > params.maxEirpDeviation + 0.001) return false;
+          }
+        }
         return true;
       });
 
       if (relaxedFeasible.length === 0) break; // truly stuck
 
-      // Pick the one that makes most progress toward target
       const best = relaxedFeasible.sort((a, b) => {
         const scoreA = scoreCandidate(a, gainValues, channels, initialEirp, params);
         const scoreB = scoreCandidate(b, gainValues, channels, initialEirp, params);
@@ -130,7 +126,7 @@ export function runCCGS(
       applyMove(best, gainValues);
       const stepData = recordStep(iter, best, gainValues, channels, gainStages, initialEirp);
       steps.push(stepData);
-      updateDeviation(stepData, initialEirp);
+      updateDeviation(stepData);
       continue;
     }
 
@@ -152,12 +148,7 @@ export function runCCGS(
     applyMove(best, gainValues);
     const stepData = recordStep(iter, best, gainValues, channels, gainStages, initialEirp);
     steps.push(stepData);
-
-    // Track max deviations
-    for (const [, dev] of Object.entries(stepData.channelEirpDeviation)) {
-      if (dev < maxNegDev) maxNegDev = dev;
-      if (dev > maxPosDev) maxPosDev = dev;
-    }
+    updateDeviation(stepData);
   }
 
   const finalEirp = computeAllChannelEirp(channels, gainValues);
@@ -178,7 +169,7 @@ export function runCCGS(
     converged,
   };
 
-  function updateDeviation(step: TransitionStep, initEirp: Record<string, number>) {
+  function updateDeviation(step: TransitionStep) {
     for (const [, dev] of Object.entries(step.channelEirpDeviation)) {
       if (dev < maxNegDev) maxNegDev = dev;
       if (dev > maxPosDev) maxPosDev = dev;
@@ -215,6 +206,6 @@ function recordStep(
     channelEirp: eirp,
     channelEirpDeviation: deviations,
     powerLevels,
-    cost: 0, // already applied
+    cost: 0,
   };
 }

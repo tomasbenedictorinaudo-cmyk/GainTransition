@@ -1,6 +1,8 @@
 import type { AlgorithmParams, CandidateMove, Channel } from '../types';
 import { computeAllChannelEirp } from '../core/eirp';
-import { isSharedGain } from '../core/coupling';
+
+/** Gain stage types considered "inner" (per-channel) for inner-first strategy */
+const INNER_STAGES = new Set(['G3', 'G4', 'G5']);
 
 /**
  * Score a candidate move. Lower score = better.
@@ -41,18 +43,12 @@ export function scoreCandidate(
  * Returns negative if a is preferred over b.
  */
 export function compareCandidates(a: CandidateMove, b: CandidateMove, params: AlgorithmParams): number {
-  // Prefer compensating pairs
-  if (params.preferCompensatingPairs) {
-    if (a.isCompensatingPair && !b.isCompensatingPair) return -1;
-    if (!a.isCompensatingPair && b.isCompensatingPair) return 1;
-  }
-
-  // Prefer per-channel gains over shared gains (inner-first)
+  // Prefer per-channel (inner) stages over shared stages (inner-first strategy)
   if (params.strategy === 'inner-first') {
-    const aShared = a.steps.some(s => isSharedGain(s.gainStageKey));
-    const bShared = b.steps.some(s => isSharedGain(s.gainStageKey));
-    if (!aShared && bShared) return -1;
-    if (aShared && !bShared) return 1;
+    const aInner = INNER_STAGES.has(a.stageType);
+    const bInner = INNER_STAGES.has(b.stageType);
+    if (aInner && !bInner) return -1;
+    if (!aInner && bInner) return 1;
   }
 
   // Prefer fewer steps (simpler move)
