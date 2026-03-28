@@ -314,6 +314,15 @@ Rx Antenna k                                              Tx Antenna m
 <p><strong>Granularity constraints.</strong> Each gain adjustment must be an integer multiple of the stage's step size:</p>
 <span class="eq">&Delta;g<sub>s</sub> &isin; { k &middot; &delta;<sub>s</sub> : k &isin; &integers; }</span>
 
+<p><strong>EIRP deviation constraint (optional).</strong> When enabled, the maximum absolute EIRP deviation from the initial operating point is bounded for all channels at every intermediate state:</p>
+<span class="eq">|&Delta;EIRP<sub>c</sub>(<strong>g</strong><sup>(i)</sup>)| &le; D<sub>max</sub> &nbsp;&nbsp; &forall; c, &forall; i &isin; {1..N}</span>
+
+<p>where <code>D<sub>max</sub></code> is the operator-specified maximum deviation in dB. When <code>D<sub>max</sub></code> is not set (null), this constraint is inactive and only the soft asymmetric cost steers the optimization. When active, it acts as a <strong>hard feasibility filter</strong>&mdash;any candidate move that would push any channel beyond <code>&plusmn;D<sub>max</sub></code> is rejected, regardless of its cost score.</p>
+
+<div class="warn">
+  <strong>Convergence trade-off.</strong> Setting <code>D<sub>max</sub></code> too tight relative to the gain step granularities may prevent convergence. For example, if a shared gain (G1) has 0.5&nbsp;dB granularity and the compensating per-channel gain (G3) has 0.25&nbsp;dB granularity, the minimum achievable transient for that pair is 0.25&nbsp;dB. Setting <code>D<sub>max</sub> &lt; 0.25</code> would block all shared gain moves. As a rule of thumb, set <code>D<sub>max</sub> &ge; max(&delta;<sub>s</sub>)</code> across all gain stages.
+</div>
+
 <h3>3.5 Objective Function</h3>
 
 <p>The objective is to find a transition sequence <code><strong>g</strong><sup>(0)</sup> &rarr; <strong>g</strong><sup>(1)</sup> &rarr; ... &rarr; <strong>g</strong><sup>(N)</sup> = <strong>g</strong><sup>*</sup></code> that minimizes the worst-case asymmetric EIRP disruption:</p>
@@ -336,6 +345,7 @@ Rx Antenna k                                              Tx Antenna m
 <ol>
   <li><strong>Generates</strong> a set of candidate moves (single atomic steps and compensating pairs).</li>
   <li><strong>Filters</strong> candidates for feasibility against all power thresholds.</li>
+  <li><strong>Filters</strong> remaining candidates against the optional hard EIRP deviation limit (<code>D<sub>max</sub></code>).</li>
   <li><strong>Scores</strong> feasible candidates using the asymmetric EIRP cost function.</li>
   <li><strong>Selects</strong> and applies the lowest-cost feasible candidate.</li>
   <li><strong>Records</strong> the full system state (gain values, EIRP, power levels) for visualization.</li>
@@ -361,6 +371,10 @@ Rx Antenna k                                              Tx Antenna m
         candidates &larr; pairs ++ singles
 
         feasible &larr; filter(candidates, move &rarr; checkFeasibility(move, gainValues, channels, gainStages))
+
+        <em>// Hard EIRP deviation constraint (when D_max is set)</em>
+        if params.maxEirpDeviation &ne; null:
+            feasible &larr; filter(feasible, move &rarr; checkEirpDeviation(move, gainValues, channels, initialEirp, D_max))
 
         if feasible is empty:
             <em>// Deadlock resolution: relax thresholds by 1 dB</em>
@@ -447,7 +461,38 @@ Rx Antenna k                                              Tx Antenna m
   <strong>Design rationale.</strong> Measuring deviation from the initial state rather than the previous state prevents a subtle failure mode: a sequence of individually low-cost steps could drift far from the initial EIRP if each step is only measured against its predecessor. By anchoring to the initial state, the algorithm always prefers states closer to the operating EIRP.
 </div>
 
-<h3>7.2 Tiebreaking Rules</h3>
+<h3>7.2 Hard EIRP Deviation Constraint</h3>
+
+<p>When <code>maxEirpDeviation</code> (D<sub>max</sub>) is set, an additional feasibility filter is applied <em>after</em> power threshold checking and <em>before</em> scoring. For each candidate move, the algorithm:</p>
+
+<ol>
+  <li>Simulates the move on a temporary gain state copy.</li>
+  <li>Computes the EIRP for every channel in the post-move state.</li>
+  <li>Computes the absolute deviation from the <em>initial</em> EIRP: <code>|EIRP<sub>c</sub>(<strong>g</strong><sup>post</sup>) &minus; EIRP<sub>c</sub>(<strong>g</strong><sup>(0)</sup>)|</code>.</li>
+  <li>Rejects the move if any channel exceeds <code>D<sub>max</sub></code> (with 0.001&nbsp;dB tolerance).</li>
+</ol>
+
+<p>This provides a <strong>hard guarantee</strong> that no channel will ever experience a transient EIRP excursion beyond the specified bound. It differs from the soft asymmetric cost in a critical way:</p>
+
+<table>
+<tr><th>Mechanism</th><th>Type</th><th>Effect</th></tr>
+<tr>
+  <td>Asymmetric cost (w<sup>&minus;</sup>, w<sup>+</sup>)</td>
+  <td>Soft</td>
+  <td>Steers the optimizer to <em>prefer</em> low-deviation moves, but allows larger deviations if no better option exists</td>
+</tr>
+<tr>
+  <td>Max EIRP deviation (D<sub>max</sub>)</td>
+  <td>Hard</td>
+  <td><em>Rejects</em> any move exceeding the bound, even if it is the lowest-cost option. May cause non-convergence if too restrictive</td>
+</tr>
+</table>
+
+<div class="note">
+  <strong>Interaction with deadlock resolution.</strong> When the hard EIRP constraint is active and all feasible candidates are eliminated, the algorithm enters deadlock resolution (threshold relaxation). The EIRP constraint is <em>not</em> relaxed during deadlock resolution&mdash;only power thresholds are. This ensures the EIRP guarantee is never violated. If no move satisfies both the relaxed thresholds and the EIRP bound, the algorithm terminates with <code>converged = false</code>.
+</div>
+
+<h3>7.3 Tiebreaking Rules</h3>
 
 <p>When two candidates have the same primary score (within 0.001 tolerance), the following tiebreakers apply in order:</p>
 
@@ -457,7 +502,7 @@ Rx Antenna k                                              Tx Antenna m
   <li><strong>Fewer steps preferred</strong>: Simpler moves are preferred to reduce state-space exploration.</li>
 </ol>
 
-<h3>7.3 Strategy Modes</h3>
+<h3>7.4 Strategy Modes</h3>
 
 <table>
 <tr><th>Strategy</th><th>Behavior</th><th>Best For</th></tr>
@@ -552,7 +597,17 @@ Rx Antenna k                                              Tx Antenna m
   <li>In practice, the greedy approach produces solutions within 1-2 step granularities of the theoretical minimum disruption, because most EIRP disruption is caused by shared gain changes, and compensating pairs handle these optimally.</li>
 </ul>
 
-<h3>10.3 Granularity Correctness</h3>
+<h3>10.3 EIRP Deviation Bound</h3>
+
+<p><strong>Claim:</strong> When <code>maxEirpDeviation</code> (D<sub>max</sub>) is set, no channel experiences an absolute EIRP deviation exceeding D<sub>max</sub> at any intermediate state.</p>
+
+<p><strong>Justification:</strong> The EIRP deviation filter is applied as a hard feasibility check after power threshold filtering and before scoring. For each candidate move, the algorithm computes the exact post-move EIRP for every channel and rejects the move if any channel's absolute deviation from the initial EIRP exceeds D<sub>max</sub>. The filter is applied consistently to both single steps and compensating pairs. During deadlock resolution (threshold relaxation), only power thresholds are relaxed&mdash;the EIRP bound is never violated. A tolerance of 0.001&nbsp;dB is applied to avoid floating-point boundary rejection.</p>
+
+<div class="note">
+  <strong>Non-convergence implication.</strong> Unlike the soft cost function, the hard EIRP constraint can cause the algorithm to terminate without reaching the target configuration. This is the correct behavior: it signals that the requested transition cannot be achieved within the specified EIRP envelope and the operator must either widen D<sub>max</sub>, adjust gain granularities, or break the transition into multiple phases.
+</div>
+
+<h3>10.4 Granularity Correctness</h3>
 
 <p><strong>Claim:</strong> All gain adjustments respect the discrete granularity of each stage.</p>
 
@@ -751,6 +806,20 @@ Rx Antenna k                                              Tx Antenna m
   <li><strong>Web Worker offloading</strong> for large payloads.</li>
   <li><strong>Reuse</strong> in server-side or CLI contexts.</li>
 </ul>
+
+<h3>13.3 CSV Export</h3>
+
+<p>The transition sequence can be exported as a CSV file for offline analysis, auditing, or integration with external systems. The export contains one row per transition step (plus a row for the initial state) with the following columns:</p>
+
+<table>
+<tr><th>Column Group</th><th>Contents</th></tr>
+<tr><td><strong>Step</strong></td><td>Step index (0 = initial state)</td></tr>
+<tr><td><strong>Move Type</strong></td><td><code>Initial</code>, <code>Single</code>, or <code>Pair</code></td></tr>
+<tr><td><strong>Changed Stages</strong></td><td>Semicolon-delimited list of stage label and delta (e.g., <code>G1 (LNA Rx0) +0.50; G3 (Ch 1) -0.25</code>)</td></tr>
+<tr><td><strong>Gain values</strong></td><td>One column per gain stage: the gain value in dB at that step</td></tr>
+<tr><td><strong>EIRP</strong></td><td>One column per channel: the absolute EIRP in dBm at that step</td></tr>
+<tr><td><strong>EIRP Deviation</strong></td><td>One column per channel: deviation from initial EIRP in dB</td></tr>
+</table>
 
 <!-- ============================================================ -->
 <h2 id="s14">14. Limitations &amp; Future Work</h2>
