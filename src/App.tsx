@@ -121,6 +121,7 @@ function App() {
             onReset={reset}
             isRunning={isRunning}
             result={result}
+            channels={config.channels}
           />
 
           {/* Step slider */}
