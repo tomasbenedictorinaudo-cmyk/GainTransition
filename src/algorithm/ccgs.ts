@@ -253,14 +253,12 @@ function buildG4StepsFromDeviation(
     const g4Gran = granularities[g4Key];
     if (!g4Gran) continue;
 
-    // Quantize the correction: oppose the deviation
+    // Quantize the correction: oppose the deviation by the nearest whole number of steps
     const rawCorrection = -deviation;
     const numSteps = Math.round(rawCorrection / g4Gran);
     if (numSteps === 0) continue;
 
-    // Only apply one granularity step at a time
-    const delta = numSteps > 0 ? g4Gran : -g4Gran;
-
+    const delta = numSteps * g4Gran;
     g4Steps.push({ gainStageKey: g4Key, delta });
   }
 
