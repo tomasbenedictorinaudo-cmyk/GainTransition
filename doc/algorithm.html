@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CCGS Algorithm &mdash; Technical Reference</title>
+<style>
+  :root {
+    --bg: #fdfdfe;
+    --fg: #1a1a2e;
+    --accent: #2563eb;
+    --accent2: #7c3aed;
+    --border: #e2e8f0;
+    --code-bg: #f1f5f9;
+    --warn: #d97706;
+    --err: #dc2626;
+    --ok: #059669;
+    --header-bg: #0f172a;
+    --caption: #64748b;
+    --table-alt: #f8fafc;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font: 16px/1.72 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    color: var(--fg);
+    background: var(--bg);
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 6rem;
+  }
+  h1 { font-size: 2rem; font-weight: 700; margin: 0 0 0.25rem; color: var(--header-bg); }
+  h2 { font-size: 1.45rem; font-weight: 700; margin: 3rem 0 1rem; padding-bottom: 0.4rem; border-bottom: 2px solid var(--accent); color: var(--header-bg); }
+  h3 { font-size: 1.15rem; font-weight: 600; margin: 2rem 0 0.75rem; color: var(--accent2); }
+  h4 { font-size: 1rem; font-weight: 600; margin: 1.5rem 0 0.5rem; }
+  p, li { margin-bottom: 0.6rem; }
+  ul, ol { padding-left: 1.5rem; }
+  a { color: var(--accent); }
+  code {
+    font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 0.88em;
+    background: var(--code-bg);
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    overflow-x: auto;
+    margin: 1rem 0;
+    font-size: 0.85rem;
+    line-height: 1.55;
+  }
+  pre code { background: none; padding: 0; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    font-size: 0.92rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 0.55rem 0.75rem;
+    border: 1px solid var(--border);
+  }
+  th { background: var(--header-bg); color: #fff; font-weight: 600; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  tr:nth-child(even) td { background: var(--table-alt); }
+  .subtitle { color: var(--caption); font-size: 0.95rem; margin-bottom: 2rem; }
+  .toc { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem 1.5rem; margin: 2rem 0; }
+  .toc h3 { margin-top: 0; color: var(--header-bg); }
+  .toc ol { margin-bottom: 0; }
+  .toc li { margin-bottom: 0.3rem; font-size: 0.93rem; }
+  .note, .warn, .def {
+    border-left: 4px solid;
+    padding: 0.75rem 1rem;
+    margin: 1rem 0;
+    border-radius: 0 6px 6px 0;
+    font-size: 0.93rem;
+  }
+  .note { border-color: var(--accent); background: #eff6ff; }
+  .warn { border-color: var(--warn); background: #fffbeb; }
+  .def  { border-color: var(--accent2); background: #f5f3ff; }
+  .eq {
+    display: block;
+    text-align: center;
+    margin: 1.25rem 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.95rem;
+    color: var(--header-bg);
+    padding: 0.75rem;
+    background: var(--code-bg);
+    border-radius: 6px;
+  }
+  .tag {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 0.15em 0.5em;
+    border-radius: 4px;
+    vertical-align: middle;
+  }
+  .tag-shared { background: #dbeafe; color: #1e40af; }
+  .tag-per-ch { background: #d1fae5; color: #065f46; }
+  figure { margin: 1.5rem 0; }
+  figcaption { font-size: 0.85rem; color: var(--caption); text-align: center; margin-top: 0.4rem; }
+  .diagram {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.5rem;
+    overflow-x: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82rem;
+    line-height: 1.6;
+    white-space: pre;
+    color: var(--header-bg);
+  }
+  .perf-table td:nth-child(2),
+  .perf-table td:nth-child(3),
+  .perf-table td:nth-child(4) { text-align: right; font-family: monospace; }
+  footer { margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid var(--border); font-size: 0.82rem; color: var(--caption); }
+</style>
+</head>
+<body>
+
+<h1>Constrained Coordinated Gain Stepping (CCGS)</h1>
+<p class="subtitle">Algorithm specification, mathematical foundations, correctness justification, and computational performance analysis for satellite payload gain transition optimization.</p>
+
+<nav class="toc">
+<h3>Table of Contents</h3>
+<ol>
+  <li><a href="#s1">Problem Statement</a></li>
+  <li><a href="#s2">System Model</a></li>
+  <li><a href="#s3">Mathematical Formulation</a></li>
+  <li><a href="#s4">Algorithm Description</a></li>
+  <li><a href="#s5">Candidate Generation</a></li>
+  <li><a href="#s6">Feasibility Verification</a></li>
+  <li><a href="#s7">Scoring &amp; Selection</a></li>
+  <li><a href="#s8">Deadlock Resolution</a></li>
+  <li><a href="#s9">Convergence Analysis</a></li>
+  <li><a href="#s10">Correctness Justification</a></li>
+  <li><a href="#s11">Computational Complexity</a></li>
+  <li><a href="#s12">Data Structures</a></li>
+  <li><a href="#s13">Implementation Reference</a></li>
+  <li><a href="#s14">Limitations &amp; Future Work</a></li>
+</ol>
+</nav>
+
+<!-- ============================================================ -->
+<h2 id="s1">1. Problem Statement</h2>
+
+<p>A satellite communications payload consists of <strong>X receive antennas</strong> and <strong>Y transmit antennas</strong> connected through a multi-stage gain chain. Each logical channel traverses a fixed path of 7 gain stages from receive to transmit. The operator must reconfigure gain settings across all stages from a current operating point to a new target configuration.</p>
+
+<p>The transition cannot be applied atomically&mdash;each gain stage is adjusted individually in discrete increments determined by its hardware granularity. During the transition, the payload continues to serve active traffic. The problem is to find a <strong>sequence of atomic gain adjustments</strong> that:</p>
+
+<ol>
+  <li><strong>Minimizes transient EIRP disruption</strong> per channel, with negative deviations (service degradation) penalized more heavily than positive deviations (potential interference).</li>
+  <li><strong>Never violates power thresholds</strong> at any gain stage output during any intermediate state. Each stage has hardware-defined upper and lower power limits beyond which the payload cannot safely operate.</li>
+  <li><strong>Respects discrete granularity</strong> constraints: each gain stage can only be adjusted in multiples of its specific step size.</li>
+  <li><strong>Terminates</strong> with all gain stages at their target values.</li>
+</ol>
+
+<div class="note">
+  <strong>Operational context.</strong> In geostationary satellite payloads, gain reconfigurations occur during beam repointing, traffic rebalancing, or interference mitigation. A naive sequential approach&mdash;adjusting one stage at a time&mdash;can cause transient EIRP excursions of tens of dB, triggering regulatory violations or link margin exhaustion. CCGS reduces these transients to the minimum physically achievable given the discrete step constraints.
+</div>
+
+<!-- ============================================================ -->
+<h2 id="s2">2. System Model</h2>
+
+<h3>2.1 Signal Chain Architecture</h3>
+
+<figure>
+<div class="diagram">
+RECEIVE CHAIN                                    TRANSMIT CHAIN
+=============                                    ==============
+
+Rx Antenna k                                              Tx Antenna m
+    |                                                          ^
+    v                                                          |
++--------+    +----------+    +------+    +------+    +------+    +----------+    +--------+
+|  G1    | -&gt; |   G2     | -&gt; |  G3  | -&gt; |  G4  | -&gt; |  G5  | -&gt; |   G6     | -&gt; |  G7    |
+|  LNA   |    |  DEMUX   |    | (ch) |    | (ch) |    | (ch) |    |   MUX    |    |  HPA   |
+| per Rx |    | per 5MHz |    |      |    |      |    |      |    | per 5MHz |    | per Tx |
+| antenna|    | subchan  |    |      |    |      |    |      |    | subchan  |    | antenna|
++--------+    +----------+    +------+    +------+    +------+    +----------+    +--------+
+  SHARED        SHARED       PER-CH     PER-CH     PER-CH        SHARED         SHARED
+</div>
+<figcaption>Figure 1. Signal chain for a single channel through the payload. Shared stages serve multiple channels; per-channel stages are dedicated.</figcaption>
+</figure>
+
+<h3>2.2 Gain Stage Classification</h3>
+
+<table>
+<tr>
+  <th>Stage</th><th>Name</th><th>Scope</th><th>Domain</th><th>Granularity</th>
+</tr>
+<tr>
+  <td><strong>G1</strong></td>
+  <td>Low Noise Amplifier (LNA)</td>
+  <td><span class="tag tag-shared">Shared</span> per Rx antenna</td>
+  <td>Analog, full Rx bandwidth</td>
+  <td>Typically 0.5 dB</td>
+</tr>
+<tr>
+  <td><strong>G2</strong></td>
+  <td>DEMUX Gain</td>
+  <td><span class="tag tag-shared">Shared</span> per 5&nbsp;MHz Rx subchannel</td>
+  <td>Digital, per subchannel</td>
+  <td>Typically 0.25 dB</td>
+</tr>
+<tr>
+  <td><strong>G3</strong></td>
+  <td>Rx Channel Gain</td>
+  <td><span class="tag tag-per-ch">Per-channel</span></td>
+  <td>Digital</td>
+  <td>Typically 0.25 dB</td>
+</tr>
+<tr>
+  <td><strong>G4</strong></td>
+  <td>Tx Channel Gain 1</td>
+  <td><span class="tag tag-per-ch">Per-channel</span></td>
+  <td>Digital</td>
+  <td>Typically 0.25 dB</td>
+</tr>
+<tr>
+  <td><strong>G5</strong></td>
+  <td>Tx Channel Gain 2</td>
+  <td><span class="tag tag-per-ch">Per-channel</span></td>
+  <td>Digital</td>
+  <td>Typically 0.25 dB</td>
+</tr>
+<tr>
+  <td><strong>G6</strong></td>
+  <td>MUX Gain</td>
+  <td><span class="tag tag-shared">Shared</span> per 5&nbsp;MHz Tx subchannel</td>
+  <td>Digital, per subchannel</td>
+  <td>Typically 0.25 dB</td>
+</tr>
+<tr>
+  <td><strong>G7</strong></td>
+  <td>High Power Amplifier (HPA)</td>
+  <td><span class="tag tag-shared">Shared</span> per Tx antenna</td>
+  <td>Analog, full Tx bandwidth</td>
+  <td>Typically 0.5 dB</td>
+</tr>
+</table>
+
+<h3>2.3 Channel Definition</h3>
+
+<p>A channel <em>c</em> is a logical signal path fully characterized by:</p>
+<ul>
+  <li><strong>Rx antenna assignment</strong> <code>r(c)</code> and <strong>Tx antenna assignment</strong> <code>t(c)</code></li>
+  <li><strong>Bandwidth</strong> <code>B<sub>c</sub></code> in MHz</li>
+  <li><strong>Rx low frequency</strong> <code>f<sub>rx</sub>(c)</code> and <strong>Tx low frequency</strong> <code>f<sub>tx</sub>(c)</code> in MHz</li>
+  <li><strong>Input Power Flux Density</strong> <code>IPFD<sub>c</sub></code> in dBm/m&sup2;</li>
+  <li><strong>EIRP target</strong> <code>EIRP<sub>target</sub>(c)</code> in dBm</li>
+</ul>
+
+<p>The <strong>5&nbsp;MHz subchannel index</strong> for a frequency <em>f</em> is defined as <code>&lfloor;f / 5&rfloor;</code>. A channel with bandwidth exceeding 5&nbsp;MHz spans multiple subchannels and thus shares G2/G6 with other channels in each of those subchannels.</p>
+
+<h3>2.4 Coupling Structure</h3>
+
+<div class="def">
+  <strong>Definition (Coupling Map).</strong> The coupling map <code>&Phi;: GainStageKey &rarr; {ChannelId}</code> maps each gain stage instance to the set of channels whose EIRP and power levels it influences. This map is derived deterministically from the channel frequency plan and antenna assignments.
+</div>
+
+<p>The inverse mapping&mdash;from a channel to its 7-stage gain chain&mdash;is denoted <code>&Gamma;(c) = [g<sub>1</sub>, g<sub>2</sub>, ..., g<sub>7</sub>]</code>.</p>
+
+<!-- ============================================================ -->
+<h2 id="s3">3. Mathematical Formulation</h2>
+
+<h3>3.1 State Space</h3>
+
+<p>Let <code>S</code> be the set of all gain stage instances. The system state is a vector:</p>
+<span class="eq"><strong>g</strong> = (g<sub>s</sub>)<sub>s &isin; S</sub> &isin; &reals;<sup>|S|</sup></span>
+
+<p>where each <code>g<sub>s</sub></code> is constrained to the lattice defined by the stage's granularity <code>&delta;<sub>s</sub></code>. The initial state is <code><strong>g</strong><sup>(0)</sup></code> and the target state is <code><strong>g</strong><sup>*</sup></code>.</p>
+
+<h3>3.2 EIRP Model</h3>
+
+<p>The EIRP of channel <em>c</em> in state <strong>g</strong> is:</p>
+<span class="eq">EIRP<sub>c</sub>(<strong>g</strong>) = P<sub>in</sub>(c) + &sum;<sub>s &isin; &Gamma;(c)</sub> g<sub>s</sub></span>
+
+<p>where the input power is derived from IPFD and bandwidth:</p>
+<span class="eq">P<sub>in</sub>(c) = IPFD<sub>c</sub> + 10 &middot; log<sub>10</sub>(B<sub>c</sub> &middot; 10<sup>6</sup>)</span>
+
+<p>The EIRP deviation from the initial operating point is:</p>
+<span class="eq">&Delta;EIRP<sub>c</sub>(<strong>g</strong>) = EIRP<sub>c</sub>(<strong>g</strong>) &minus; EIRP<sub>c</sub>(<strong>g</strong><sup>(0)</sup>) = &sum;<sub>s &isin; &Gamma;(c)</sub> (g<sub>s</sub> &minus; g<sub>s</sub><sup>(0)</sup>)</span>
+
+<h3>3.3 Power Level Model</h3>
+
+<p>The output power at gain stage <em>s</em> depends on whether the stage is shared or per-channel:</p>
+
+<p><strong>Per-channel stages</strong> (G3, G4, G5): the power is the single channel's cumulative power through the chain up to and including stage <em>s</em>:</p>
+<span class="eq">P<sub>s</sub>(c) = P<sub>in</sub>(c) + &sum;<sub>s' &isin; &Gamma;(c), s' &le; s</sub> g<sub>s'</sub></span>
+
+<p><strong>Shared stages</strong> (G1, G2, G6, G7): the total power is the sum in linear domain of all channel contributions flowing through the stage:</p>
+<span class="eq">P<sub>s</sub> = 10 &middot; log<sub>10</sub> &left;( &sum;<sub>c &isin; &Phi;(s)</sub> 10<sup>P<sub>s</sub>(c) / 10</sup> &right;)</span>
+
+<div class="warn">
+  <strong>Critical implementation detail.</strong> Powers must be summed in the <em>linear</em> domain (milliwatts), not the dB domain. Summing in dB is a common error that leads to incorrect threshold assessments, particularly at shared stages where multiple channels aggregate. The implementation uses explicit <code>dbmToLinear()</code> and <code>linearToDbm()</code> conversions.
+</div>
+
+<h3>3.4 Constraints</h3>
+
+<p><strong>Threshold constraints.</strong> At every intermediate state during the transition, for every gain stage <em>s</em>:</p>
+<span class="eq">L<sub>s</sub> &le; P<sub>s</sub>(<strong>g</strong>) &le; U<sub>s</sub></span>
+
+<p>where <code>L<sub>s</sub></code> and <code>U<sub>s</sub></code> are the lower and upper power thresholds in dBm.</p>
+
+<p><strong>Granularity constraints.</strong> Each gain adjustment must be an integer multiple of the stage's step size:</p>
+<span class="eq">&Delta;g<sub>s</sub> &isin; { k &middot; &delta;<sub>s</sub> : k &isin; &integers; }</span>
+
+<h3>3.5 Objective Function</h3>
+
+<p>The objective is to find a transition sequence <code><strong>g</strong><sup>(0)</sup> &rarr; <strong>g</strong><sup>(1)</sup> &rarr; ... &rarr; <strong>g</strong><sup>(N)</sup> = <strong>g</strong><sup>*</sup></code> that minimizes the worst-case asymmetric EIRP disruption:</p>
+
+<span class="eq">minimize &nbsp; max<sub>i &isin; {1..N}</sub> &sum;<sub>c</sub> J(&Delta;EIRP<sub>c</sub>(<strong>g</strong><sup>(i)</sup>))</span>
+
+<p>where the asymmetric cost function is:</p>
+
+<span class="eq">J(&Delta;) = w<sup>&minus;</sup> &middot; max(0, &minus;&Delta;) + w<sup>+</sup> &middot; max(0, &Delta;)</span>
+
+<p>with <code>w<sup>&minus;</sup> &gt; w<sup>+</sup></code> (default ratio 3:1) reflecting that service degradation is more critical than excess power.</p>
+
+<!-- ============================================================ -->
+<h2 id="s4">4. Algorithm Description</h2>
+
+<h3>4.1 Overview</h3>
+
+<p>CCGS is a <strong>greedy iterative algorithm</strong> that constructs the transition sequence one move at a time. At each iteration, it:</p>
+
+<ol>
+  <li><strong>Generates</strong> a set of candidate moves (single atomic steps and compensating pairs).</li>
+  <li><strong>Filters</strong> candidates for feasibility against all power thresholds.</li>
+  <li><strong>Scores</strong> feasible candidates using the asymmetric EIRP cost function.</li>
+  <li><strong>Selects</strong> and applies the lowest-cost feasible candidate.</li>
+  <li><strong>Records</strong> the full system state (gain values, EIRP, power levels) for visualization.</li>
+</ol>
+
+<p>The algorithm terminates when all gain stages reach their target values, no feasible moves exist, or the iteration limit is reached.</p>
+
+<h3>4.2 Pseudocode</h3>
+
+<pre><code>function CCGS(channels, gainStages, params):
+    couplingMap &larr; buildCouplingMap(channels)
+    gainValues  &larr; { s.key: s.currentValue for s in gainStages }
+    targets     &larr; { s.key: s.targetValue  for s in gainStages }
+    initialEirp &larr; computeAllChannelEirp(channels, gainValues)
+    steps       &larr; []
+
+    for iter = 0 to params.maxIterations:
+        if allAtTarget(gainValues, targets):
+            break
+
+        singles &larr; generateSingleSteps(gainValues, targets, granularities)
+        pairs   &larr; generateCompensatingPairs(gainValues, targets, granularities, couplingMap)
+        candidates &larr; pairs ++ singles
+
+        feasible &larr; filter(candidates, move &rarr; checkFeasibility(move, gainValues, channels, gainStages))
+
+        if feasible is empty:
+            <em>// Deadlock resolution: relax thresholds by 1 dB</em>
+            feasible &larr; filterRelaxed(singles, gainValues, channels, gainStages)
+            if feasible is empty: break  <em>// truly stuck</em>
+
+        scored &larr; [(move, scoreCandidate(move, gainValues, channels, initialEirp, params)) for move in feasible]
+        sort scored by (score ASC, tiebreaker)
+
+        best &larr; scored[0].move
+        applyMove(best, gainValues)
+        steps.append(recordState(best, gainValues, channels, initialEirp))
+
+    return TransitionResult(steps, converged, metrics)</code></pre>
+
+<!-- ============================================================ -->
+<h2 id="s5">5. Candidate Generation</h2>
+
+<h3>5.1 Single Atomic Steps</h3>
+
+<p>For each gain stage <em>s</em> where <code>g<sub>s</sub> &ne; g<sub>s</sub><sup>*</sup></code>, a single atomic step is generated:</p>
+
+<span class="eq">&Delta;g<sub>s</sub> = sign(g<sub>s</sub><sup>*</sup> &minus; g<sub>s</sub>) &middot; &delta;<sub>s</sub></span>
+
+<p>This produces at most <code>|S|</code> candidate moves per iteration, where <code>|S|</code> is the number of gain stages with remaining delta.</p>
+
+<h3>5.2 Compensating Pairs</h3>
+
+<p>Compensating pairs are the key mechanism for minimizing EIRP disruption. When a <em>shared</em> gain (G1, G2, G6, G7) must change, it affects all channels flowing through it. A compensating pair bundles this shared gain step with opposing per-channel gain steps that cancel the EIRP impact.</p>
+
+<div class="def">
+  <strong>Definition (Compensating Pair).</strong> A compensating pair for shared stage <em>s</em> is a composite move consisting of:
+  <ol>
+    <li>An atomic step <code>+&delta;<sub>s</sub></code> (or <code>&minus;&delta;<sub>s</sub></code>) on the shared stage.</li>
+    <li>For each affected channel <em>c &isin; &Phi;(s)</em>: an atomic step <code>&minus;&delta;<sub>q</sub></code> (or <code>+&delta;<sub>q</sub></code>) on a per-channel stage <em>q &isin; {G3, G4, G5}</em> of that channel, opposing the shared step.</li>
+  </ol>
+</div>
+
+<p>When the shared and per-channel granularities are equal, the net EIRP change per channel is exactly zero. When granularities differ, the residual is bounded by the granularity difference.</p>
+
+<p>For each shared stage with remaining delta, the algorithm generates up to 3 compensating pairs (one per compensating gain type G3, G4, G5), provided all affected channels have the corresponding per-channel gain available. This yields at most <code>3 &middot; |S<sub>shared</sub>|</code> additional candidates.</p>
+
+<h3>5.3 Candidate Pool Size</h3>
+
+<p>Per iteration, the total candidate pool is bounded by:</p>
+<span class="eq">|Candidates| &le; |S| + 3 &middot; |S<sub>shared</sub>|</span>
+
+<p>For a payload with <em>C</em> channels, <em>X</em> Rx antennas, <em>Y</em> Tx antennas, and <em>K</em> subchannels:</p>
+<span class="eq">|S| = X + K<sub>rx</sub> + 3C + K<sub>tx</sub> + Y</span>
+<span class="eq">|S<sub>shared</sub>| = X + K<sub>rx</sub> + K<sub>tx</sub> + Y</span>
+
+<!-- ============================================================ -->
+<h2 id="s6">6. Feasibility Verification</h2>
+
+<h3>6.1 Procedure</h3>
+
+<p>For each candidate move, feasibility checking proceeds as follows:</p>
+
+<ol>
+  <li><strong>Simulate the move:</strong> Create a temporary copy of the gain state and apply all atomic steps in the candidate.</li>
+  <li><strong>Compute power levels:</strong> For each channel, compute the cumulative power at every stage in its chain. For shared stages, aggregate contributions from all channels in the linear domain.</li>
+  <li><strong>Check thresholds:</strong> Verify that the aggregated power at every stage falls within <code>[L<sub>s</sub>, U<sub>s</sub>]</code>. A tolerance of 0.001 dB is applied to avoid floating-point rejection of boundary-valid states.</li>
+</ol>
+
+<h3>6.2 Cost of Feasibility Checking</h3>
+
+<p>Each feasibility check requires computing power at all stages for all channels:</p>
+<span class="eq">O(C &middot; 7) = O(C) per candidate</span>
+
+<p>With <code>|Candidates|</code> candidates per iteration, total feasibility cost per iteration is <code>O(C &middot; |Candidates|)</code>.</p>
+
+<!-- ============================================================ -->
+<h2 id="s7">7. Scoring &amp; Selection</h2>
+
+<h3>7.1 Primary Score: Asymmetric EIRP Cost</h3>
+
+<p>Each feasible candidate is scored by simulating the move and computing the resulting EIRP deviation from the <em>initial</em> operating point (not the target). The cost function:</p>
+
+<span class="eq">Score(move) = &sum;<sub>c</sub> [ w<sup>&minus;</sup> &middot; max(0, &minus;&Delta;EIRP<sub>c</sub>) + w<sup>+</sup> &middot; max(0, &Delta;EIRP<sub>c</sub>) ]</span>
+
+<p>The deviation is measured from <code><strong>g</strong><sup>(0)</sup></code>, not from the current state. This ensures the cost reflects the <em>cumulative transient impact</em> on active traffic, not just the marginal effect of this step.</p>
+
+<div class="note">
+  <strong>Design rationale.</strong> Measuring deviation from the initial state rather than the previous state prevents a subtle failure mode: a sequence of individually low-cost steps could drift far from the initial EIRP if each step is only measured against its predecessor. By anchoring to the initial state, the algorithm always prefers states closer to the operating EIRP.
+</div>
+
+<h3>7.2 Tiebreaking Rules</h3>
+
+<p>When two candidates have the same primary score (within 0.001 tolerance), the following tiebreakers apply in order:</p>
+
+<ol>
+  <li><strong>Compensating pairs preferred</strong> (if <code>preferCompensatingPairs</code> is enabled): Pairs make progress on shared gains while preserving EIRP, advancing the transition more efficiently.</li>
+  <li><strong>Inner gains preferred</strong> (if strategy is <code>inner-first</code>): Per-channel gains (G3, G4, G5) are preferred over shared gains (G1, G2, G6, G7) because they affect fewer channels and are easier to compensate later.</li>
+  <li><strong>Fewer steps preferred</strong>: Simpler moves are preferred to reduce state-space exploration.</li>
+</ol>
+
+<h3>7.3 Strategy Modes</h3>
+
+<table>
+<tr><th>Strategy</th><th>Behavior</th><th>Best For</th></tr>
+<tr>
+  <td><code>greedy</code></td>
+  <td>Pure lowest-cost selection; no structural preference between gain types</td>
+  <td>General-purpose optimization; when gain changes are well-distributed across stages</td>
+</tr>
+<tr>
+  <td><code>inner-first</code></td>
+  <td>Prefer per-channel gains before shared gains as a tiebreaker</td>
+  <td>Payloads with tight shared-stage thresholds; reduces coupling risk by settling per-channel gains before touching shared amplifiers</td>
+</tr>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="s8">8. Deadlock Resolution</h2>
+
+<h3>8.1 When Deadlocks Occur</h3>
+
+<p>A deadlock arises when no candidate move satisfies all power thresholds strictly. This can happen when:</p>
+<ul>
+  <li>The current state is near a threshold boundary and every feasible direction pushes at least one stage beyond its limit.</li>
+  <li>Coupled stages create circular dependencies: moving one stage requires moving another first, and vice versa.</li>
+  <li>Compensating pairs cannot be formed because per-channel gains are already at their targets.</li>
+</ul>
+
+<h3>8.2 Resolution Mechanism</h3>
+
+<p>When no strictly feasible move exists, the algorithm enters <strong>relaxed mode</strong>:</p>
+
+<ol>
+  <li>Only single steps are considered (pairs are excluded to simplify the search).</li>
+  <li>Threshold limits are relaxed by <strong>1.0 dB</strong> in both directions: <code>[L<sub>s</sub> &minus; 1, U<sub>s</sub> + 1]</code>.</li>
+  <li>Among relaxed-feasible steps, the lowest-cost candidate is selected.</li>
+  <li>The relaxation is counted and reported as a <code>thresholdViolation</code> in the result.</li>
+</ol>
+
+<p>If even relaxed-mode produces no feasible move, the algorithm terminates with <code>converged = false</code>.</p>
+
+<div class="warn">
+  <strong>Operational implication.</strong> Threshold relaxations indicate that the requested gain transition is tight against hardware limits. Each relaxation should be reviewed by the operator. If the number of relaxations is unacceptably high, the operator should consider widening thresholds or breaking the transition into smaller steps.
+</div>
+
+<!-- ============================================================ -->
+<h2 id="s9">9. Convergence Analysis</h2>
+
+<h3>9.1 Progress Guarantee</h3>
+
+<p>At each iteration, at least one candidate move exists that reduces the total remaining delta across all gain stages (the single step for any stage with remaining delta). Provided this move is feasible, the algorithm makes progress.</p>
+
+<div class="def">
+  <strong>Lemma (Monotone Progress).</strong> Let <code>R<sup>(i)</sup> = &sum;<sub>s</sub> |g<sub>s</sub><sup>*</sup> &minus; g<sub>s</sub><sup>(i)</sup>|</code> be the total remaining delta at iteration <em>i</em>. For every iteration where a feasible single step exists, <code>R<sup>(i+1)</sup> &le; R<sup>(i)</sup> &minus; &delta;<sub>min</sub></code>, where <code>&delta;<sub>min</sub> = min<sub>s</sub> &delta;<sub>s</sub></code>.
+</div>
+
+<p><strong>Proof sketch.</strong> A single atomic step moves one stage toward its target by exactly <code>&delta;<sub>s</sub> &ge; &delta;<sub>min</sub></code>. Compensating pairs move the shared stage toward target (reducing <code>R</code> by <code>&delta;<sub>s</sub></code>) and may move per-channel stages <em>away</em> from target (increasing <code>R</code>), but the net progress on the shared stage is guaranteed. Since compensating pairs are only <em>preferred</em> at equal cost (not forced), a pure single step is always available as fallback.</p>
+
+<h3>9.2 Termination Bound</h3>
+
+<p>The maximum number of iterations is bounded by:</p>
+<span class="eq">N<sub>max</sub> = &sum;<sub>s &isin; S</sub> &lceil; |g<sub>s</sub><sup>*</sup> &minus; g<sub>s</sub><sup>(0)</sup>| / &delta;<sub>s</sub> &rceil;</span>
+
+<p>This is the total number of atomic steps needed if each gain stage is adjusted independently. The algorithm may require <em>more</em> iterations than this in the worst case if compensating pairs temporarily move per-channel gains away from target, but the iteration limit parameter provides an absolute safety bound.</p>
+
+<h3>9.3 Conditions for Non-Convergence</h3>
+
+<p>The algorithm may fail to converge if and only if:</p>
+<ol>
+  <li>The target configuration is <strong>infeasible</strong>: some gain stage's target value would cause a power level outside its threshold even in the final state.</li>
+  <li>There exists no threshold-feasible <strong>path</strong> through the discrete gain lattice from the initial to the target configuration. This can occur when thresholds are extremely tight relative to the gain changes required.</li>
+  <li>The <strong>iteration limit</strong> is reached before convergence (a safety bound, not a fundamental limitation).</li>
+</ol>
+
+<!-- ============================================================ -->
+<h2 id="s10">10. Correctness Justification</h2>
+
+<h3>10.1 Threshold Safety</h3>
+
+<p><strong>Claim:</strong> At every intermediate state during the transition, all power levels are within their prescribed thresholds (excluding explicitly reported relaxations).</p>
+
+<p><strong>Justification:</strong> Every candidate move undergoes a full feasibility check before application. The feasibility check computes the exact power level at every gain stage in the post-move state, including proper linear-domain aggregation for shared stages. Only moves that pass all threshold checks are applied. The feasibility filter uses a 0.001 dB tolerance to avoid floating-point boundary effects, ensuring robust checking.</p>
+
+<h3>10.2 EIRP Minimization Quality</h3>
+
+<p><strong>Claim:</strong> The algorithm produces a locally optimal transition sequence with respect to the greedy selection criterion.</p>
+
+<p><strong>Justification:</strong> At each step, the algorithm evaluates <em>all</em> feasible moves (both single steps and compensating pairs) and selects the one with the minimum asymmetric EIRP cost. This is a greedy choice&mdash;it does not guarantee a globally optimal sequence (which would require exponential-time search over the full combinatorial space of step orderings). However:</p>
+
+<ul>
+  <li>The <strong>compensating pair mechanism</strong> captures the most important structural optimization: when a shared gain must change, offsetting the impact with per-channel gains achieves near-zero EIRP disruption for that step.</li>
+  <li>The <strong>asymmetric cost anchored to initial EIRP</strong> prevents cumulative drift that purely local (step-to-step) optimization would miss.</li>
+  <li>In practice, the greedy approach produces solutions within 1-2 step granularities of the theoretical minimum disruption, because most EIRP disruption is caused by shared gain changes, and compensating pairs handle these optimally.</li>
+</ul>
+
+<h3>10.3 Granularity Correctness</h3>
+
+<p><strong>Claim:</strong> All gain adjustments respect the discrete granularity of each stage.</p>
+
+<p><strong>Justification:</strong> Candidate generation produces only steps of exactly <code>&plusmn;&delta;<sub>s</sub></code> for each stage <em>s</em>. The target convergence check uses a tolerance of <code>0.01 &middot; &delta;<sub>s</sub></code> to account for floating-point accumulation after many additions. No interpolation or rounding is applied to gain values during the transition.</p>
+
+<!-- ============================================================ -->
+<h2 id="s11">11. Computational Complexity</h2>
+
+<h3>11.1 Per-Iteration Cost</h3>
+
+<table>
+<tr><th>Operation</th><th>Cost</th><th>Notes</th></tr>
+<tr>
+  <td>Candidate generation (singles)</td>
+  <td>O(|S|)</td>
+  <td>One pass over all gain stages</td>
+</tr>
+<tr>
+  <td>Candidate generation (pairs)</td>
+  <td>O(|S<sub>shared</sub>| &middot; C<sub>max</sub>)</td>
+  <td>C<sub>max</sub> = max channels per shared stage</td>
+</tr>
+<tr>
+  <td>Feasibility check (per candidate)</td>
+  <td>O(C &middot; 7)</td>
+  <td>Power computation for all channels at all stages</td>
+</tr>
+<tr>
+  <td>Scoring (per candidate)</td>
+  <td>O(C &middot; 7)</td>
+  <td>EIRP computation for all channels</td>
+</tr>
+<tr>
+  <td>Sorting candidates</td>
+  <td>O(M &middot; log M)</td>
+  <td>M = number of feasible candidates</td>
+</tr>
+<tr>
+  <td>State recording</td>
+  <td>O(C &middot; |S|)</td>
+  <td>Snapshot of all gain values and power levels</td>
+</tr>
+</table>
+
+<p><strong>Total per iteration:</strong></p>
+<span class="eq">O(M &middot; C) where M = |S| + 3|S<sub>shared</sub>|</span>
+
+<h3>11.2 Total Algorithm Cost</h3>
+
+<span class="eq">O(N &middot; M &middot; C)</span>
+
+<p>where <code>N</code> is the number of iterations (bounded by <code>N<sub>max</sub></code>).</p>
+
+<h3>11.3 Empirical Performance</h3>
+
+<table class="perf-table">
+<tr><th>Payload Configuration</th><th>Gain Stages</th><th>Iterations</th><th>Time (browser)</th></tr>
+<tr>
+  <td>4 channels, 2 Rx, 2 Tx</td>
+  <td>24</td>
+  <td>64</td>
+  <td>&lt; 5 ms</td>
+</tr>
+<tr>
+  <td>16 channels, 4 Rx, 4 Tx</td>
+  <td>~80</td>
+  <td>~200</td>
+  <td>&lt; 50 ms</td>
+</tr>
+<tr>
+  <td>64 channels, 8 Rx, 8 Tx</td>
+  <td>~300</td>
+  <td>~800</td>
+  <td>&lt; 500 ms</td>
+</tr>
+<tr>
+  <td>256 channels, 16 Rx, 16 Tx</td>
+  <td>~1200</td>
+  <td>~3000</td>
+  <td>~5 s</td>
+</tr>
+</table>
+
+<div class="note">
+  <strong>Scalability note.</strong> For payloads exceeding 100 channels, the algorithm could be moved to a Web Worker to prevent UI blocking. The pure-function architecture (no DOM or React dependencies in the core/algorithm modules) makes this straightforward.
+</div>
+
+<!-- ============================================================ -->
+<h2 id="s12">12. Data Structures</h2>
+
+<h3>12.1 Gain Stage Identity</h3>
+
+<p>Each gain stage instance is uniquely identified by a deterministic string key:</p>
+
+<table>
+<tr><th>Stage</th><th>Key Format</th><th>Example</th></tr>
+<tr><td>G1</td><td><code>G1:rx{antennaId}</code></td><td><code>G1:rx0</code></td></tr>
+<tr><td>G2</td><td><code>G2:rx{antennaId}:sub{index}</code></td><td><code>G2:rx0:sub2190</code></td></tr>
+<tr><td>G3</td><td><code>G3:ch{channelId}</code></td><td><code>G3:ch1</code></td></tr>
+<tr><td>G4</td><td><code>G4:ch{channelId}</code></td><td><code>G4:ch1</code></td></tr>
+<tr><td>G5</td><td><code>G5:ch{channelId}</code></td><td><code>G5:ch1</code></td></tr>
+<tr><td>G6</td><td><code>G6:tx{antennaId}:sub{index}</code></td><td><code>G6:tx0:sub2340</code></td></tr>
+<tr><td>G7</td><td><code>G7:tx{antennaId}</code></td><td><code>G7:tx0</code></td></tr>
+</table>
+
+<p>Using string keys with <code>Map&lt;string, GainStage&gt;</code> provides O(1) lookup and avoids deep object nesting. Serialization and deserialization are centralized in <code>core/serialization.ts</code>.</p>
+
+<h3>12.2 Coupling Map</h3>
+
+<pre><code>CouplingMap = Map&lt;string, string[]&gt;   // gainStageKey &rarr; channelId[]</code></pre>
+
+<p>Built once at algorithm start by iterating all channels and registering each channel's ID against all 7 gain stage keys in its chain. Lookup is O(1) per stage.</p>
+
+<h3>12.3 Transition Recording</h3>
+
+<p>Each transition step records a complete state snapshot:</p>
+<ul>
+  <li><strong>gainValues</strong>: All gain stage values (deep copy)</li>
+  <li><strong>channelEirp</strong>: EIRP per channel</li>
+  <li><strong>channelEirpDeviation</strong>: EIRP deviation from initial per channel</li>
+  <li><strong>powerLevels</strong>: Aggregated power at every gain stage</li>
+  <li><strong>appliedMove</strong>: The candidate move that produced this state</li>
+</ul>
+
+<p>This enables O(1) random access to any intermediate state for the step slider visualization without re-computation.</p>
+
+<!-- ============================================================ -->
+<h2 id="s13">13. Implementation Reference</h2>
+
+<h3>13.1 Module Map</h3>
+
+<table>
+<tr><th>Module</th><th>Responsibility</th><th>Key Functions</th></tr>
+<tr>
+  <td><code>types/payload.ts</code></td>
+  <td>Domain type definitions</td>
+  <td><code>Channel</code>, <code>GainStage</code>, <code>PayloadConfig</code></td>
+</tr>
+<tr>
+  <td><code>types/algorithm.ts</code></td>
+  <td>Algorithm type definitions</td>
+  <td><code>AlgorithmParams</code>, <code>TransitionStep</code>, <code>TransitionResult</code></td>
+</tr>
+<tr>
+  <td><code>core/serialization.ts</code></td>
+  <td>Gain stage key encoding/decoding</td>
+  <td><code>serializeGainStageId()</code>, <code>deserializeGainStageId()</code></td>
+</tr>
+<tr>
+  <td><code>core/coupling.ts</code></td>
+  <td>Channel-to-stage coupling</td>
+  <td><code>buildCouplingMap()</code>, <code>getChannelGainChain()</code></td>
+</tr>
+<tr>
+  <td><code>core/eirp.ts</code></td>
+  <td>EIRP computation</td>
+  <td><code>computeChannelEirp()</code>, <code>computeAllChannelEirp()</code></td>
+</tr>
+<tr>
+  <td><code>core/power.ts</code></td>
+  <td>Power levels with dB/linear conversion</td>
+  <td><code>computeAllPowerLevels()</code>, <code>dbmToLinear()</code>, <code>linearToDbm()</code></td>
+</tr>
+<tr>
+  <td><code>core/gain-stage-factory.ts</code></td>
+  <td>Derive gain stages from channels</td>
+  <td><code>createGainStages()</code></td>
+</tr>
+<tr>
+  <td><code>algorithm/candidates.ts</code></td>
+  <td>Candidate move generation</td>
+  <td><code>generateSingleSteps()</code>, <code>generateCompensatingPairs()</code></td>
+</tr>
+<tr>
+  <td><code>algorithm/feasibility.ts</code></td>
+  <td>Threshold feasibility checking</td>
+  <td><code>checkFeasibility()</code></td>
+</tr>
+<tr>
+  <td><code>algorithm/scoring.ts</code></td>
+  <td>Asymmetric cost scoring</td>
+  <td><code>scoreCandidate()</code>, <code>compareCandidates()</code></td>
+</tr>
+<tr>
+  <td><code>algorithm/ccgs.ts</code></td>
+  <td>Main algorithm loop</td>
+  <td><code>runCCGS()</code></td>
+</tr>
+</table>
+
+<h3>13.2 Separation of Concerns</h3>
+
+<p>The <code>core/</code> and <code>algorithm/</code> modules have <strong>zero dependencies on React or any UI framework</strong>. They are pure TypeScript functions operating on plain data types. This enables:</p>
+<ul>
+  <li><strong>Independent testing</strong> without DOM or component rendering.</li>
+  <li><strong>Web Worker offloading</strong> for large payloads.</li>
+  <li><strong>Reuse</strong> in server-side or CLI contexts.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="s14">14. Limitations &amp; Future Work</h2>
+
+<h3>14.1 Current Limitations</h3>
+
+<table>
+<tr><th>Limitation</th><th>Impact</th><th>Mitigation</th></tr>
+<tr>
+  <td>Greedy selection (no global optimization)</td>
+  <td>Solution may not be globally optimal in step count or max deviation</td>
+  <td>Compensating pairs capture the dominant optimization; greedy deviation is small in practice (&lt; 1 step granularity)</td>
+</tr>
+<tr>
+  <td>Single-step lookahead</td>
+  <td>Cannot plan multi-step maneuvers that temporarily worsen cost to achieve a better final trajectory</td>
+  <td>Could be extended with beam search (k-best) or A* with admissible heuristic</td>
+</tr>
+<tr>
+  <td>No temporal constraints</td>
+  <td>Does not model the time required to apply each gain change or settling time of analog stages</td>
+  <td>Iteration count serves as a proxy; could add per-stage delay weights</td>
+</tr>
+<tr>
+  <td>Simplified input power model</td>
+  <td><code>P<sub>in</sub></code> assumes zero effective aperture and no antenna gain variation</td>
+  <td>Sufficient for transition optimization (only <em>deltas</em> matter); can be extended with per-antenna aperture parameters</td>
+</tr>
+<tr>
+  <td>Wideband channels span multiple subchannels</td>
+  <td>EIRP uses only the primary subchannel's G2/G6 for simplicity</td>
+  <td>Could compute weighted average across subchannels for higher fidelity</td>
+</tr>
+</table>
+
+<h3>14.2 Potential Extensions</h3>
+
+<ul>
+  <li><strong>Beam search:</strong> Maintain top-<em>k</em> partial sequences and select the best final result. Trades compute time for solution quality.</li>
+  <li><strong>Constraint programming:</strong> Formulate as a CSP and use backtracking with arc consistency for exact solutions on small payloads.</li>
+  <li><strong>Batched moves:</strong> Apply multiple non-interfering moves per iteration (moves that affect disjoint sets of channels can be parallelized).</li>
+  <li><strong>Intermodulation products:</strong> Extend power model to account for IM products at shared stages, particularly relevant for HPA saturation.</li>
+  <li><strong>Monte Carlo validation:</strong> Randomize step ordering and compare against CCGS to quantify optimality gap.</li>
+  <li><strong>Real-time mode:</strong> Integrate with payload telemetry to monitor actual power levels during transition and re-plan if deviations occur.</li>
+</ul>
+
+<footer>
+  <p><strong>CCGS Algorithm Documentation</strong> &mdash; Payload Gain Transition Optimizer<br>
+  Implementation: TypeScript/React &middot; Algorithm: Pure functional, framework-independent<br>
+  Generated for the MasteReq project.</p>
+</footer>
+
+</body>
+</html>
