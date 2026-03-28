@@ -106,6 +106,12 @@
   .tag-per-ch { background: #d1fae5; color: #065f46; }
   figure { margin: 1.5rem 0; }
   figcaption { font-size: 0.85rem; color: var(--caption); text-align: center; margin-top: 0.4rem; }
+  .svg-diagram {
+    display: block;
+    margin: 0 auto;
+    max-width: 100%;
+    height: auto;
+  }
   .diagram {
     background: #fff;
     border: 1px solid var(--border);
@@ -166,6 +172,155 @@
 <div class="note">
   <strong>Operational context.</strong> In geostationary satellite payloads, gain reconfigurations occur during beam repointing, traffic rebalancing, or interference mitigation. A naive sequential approach&mdash;adjusting one stage at a time&mdash;can cause transient EIRP excursions of tens of dB, triggering regulatory violations or link margin exhaustion. CCGS reduces these transients to the minimum physically achievable given the discrete step constraints.
 </div>
+
+<h3>1.1 Top-Level Workflow</h3>
+
+<p>The following diagram shows the end-to-end CCGS workflow from operator input to output artifacts:</p>
+
+<figure>
+<svg class="svg-diagram" viewBox="0 0 880 620" xmlns="http://www.w3.org/2000/svg" font-family="Inter, system-ui, sans-serif">
+  <defs>
+    <marker id="ah1" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#334155"/></marker>
+    <marker id="ah1r" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#dc2626"/></marker>
+    <marker id="ah1g" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#059669"/></marker>
+    <linearGradient id="gInput" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#eff6ff"/><stop offset="100%" stop-color="#dbeafe"/></linearGradient>
+    <linearGradient id="gProc" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f8fafc"/><stop offset="100%" stop-color="#e2e8f0"/></linearGradient>
+    <linearGradient id="gIter" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fefce8"/><stop offset="100%" stop-color="#fef08a"/></linearGradient>
+    <linearGradient id="gDec" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fef3c7"/><stop offset="100%" stop-color="#fde68a"/></linearGradient>
+    <linearGradient id="gOut" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ecfdf5"/><stop offset="100%" stop-color="#d1fae5"/></linearGradient>
+    <linearGradient id="gErr" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fef2f2"/><stop offset="100%" stop-color="#fecaca"/></linearGradient>
+  </defs>
+
+  <!-- INPUTS -->
+  <rect x="40" y="20" width="170" height="56" rx="8" fill="url(#gInput)" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="125" y="42" text-anchor="middle" font-size="10" fill="#1e40af" font-weight="700">OPERATOR INPUT</text>
+  <text x="125" y="57" text-anchor="middle" font-size="9.5" fill="#334155">Channel definitions</text>
+
+  <rect x="250" y="20" width="170" height="56" rx="8" fill="url(#gInput)" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="335" y="42" text-anchor="middle" font-size="10" fill="#1e40af" font-weight="700">GAIN CONFIG</text>
+  <text x="335" y="57" text-anchor="middle" font-size="9.5" fill="#334155">Current &amp; target values</text>
+
+  <rect x="460" y="20" width="170" height="56" rx="8" fill="url(#gInput)" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="545" y="42" text-anchor="middle" font-size="10" fill="#1e40af" font-weight="700">ALGORITHM PARAMS</text>
+  <text x="545" y="57" text-anchor="middle" font-size="9.5" fill="#334155">w⁻, w⁺, D_max, strategy</text>
+
+  <!-- Arrows from inputs down -->
+  <line x1="125" y1="76" x2="125" y2="100" stroke="#334155" stroke-width="1.2" marker-end="url(#ah1)"/>
+  <line x1="335" y1="76" x2="335" y2="100" stroke="#334155" stroke-width="1.2" marker-end="url(#ah1)"/>
+  <line x1="545" y1="76" x2="545" y2="100" stroke="#334155" stroke-width="1.2" marker-end="url(#ah1)"/>
+
+  <!-- INITIALIZATION -->
+  <rect x="80" y="106" width="520" height="50" rx="8" fill="url(#gProc)" stroke="#64748b" stroke-width="1.5"/>
+  <text x="340" y="127" text-anchor="middle" font-size="11" fill="#0f172a" font-weight="700">1. INITIALIZATION</text>
+  <text x="340" y="143" text-anchor="middle" font-size="9.5" fill="#334155">Build coupling map · Compute initial EIRP · Decompose gain deltas into atomic steps</text>
+
+  <!-- Arrow down -->
+  <line x1="340" y1="156" x2="340" y2="180" stroke="#334155" stroke-width="1.2" marker-end="url(#ah1)"/>
+
+  <!-- ITERATION LOOP BOX -->
+  <rect x="30" y="185" width="680" height="310" rx="12" fill="none" stroke="#d97706" stroke-width="2" stroke-dasharray="6,3"/>
+  <text x="50" y="205" font-size="11" fill="#d97706" font-weight="700">ITERATION LOOP (repeat until converged or stuck)</text>
+
+  <!-- Step 2: Generate candidates -->
+  <rect x="60" y="218" width="260" height="42" rx="6" fill="url(#gIter)" stroke="#ca8a04" stroke-width="1.2"/>
+  <text x="190" y="235" text-anchor="middle" font-size="10" fill="#0f172a" font-weight="600">2. Generate candidates</text>
+  <text x="190" y="249" text-anchor="middle" font-size="9" fill="#334155">Single steps + compensating pairs</text>
+
+  <!-- Arrow right -->
+  <line x1="320" y1="239" x2="350" y2="239" stroke="#334155" stroke-width="1.2" marker-end="url(#ah1)"/>
+
+  <!-- Step 3: Feasibility filter -->
+  <rect x="356" y="218" width="330" height="42" rx="6" fill="url(#gIter)" stroke="#ca8a04" stroke-width="1.2"/>
+  <text x="521" y="235" text-anchor="middle" font-size="10" fill="#0f172a" font-weight="600">3. Filter: power thresholds + EIRP D_max</text>
+  <text x="521" y="249" text-anchor="middle" font-size="9" fill="#334155">Reject infeasible candidates</text>
+
+  <!-- Arrow down from filter -->
+  <line x1="521" y1="260" x2="521" y2="282" stroke="#334155" stroke-width="1.2" marker-end="url(#ah1)"/>
+
+  <!-- Decision diamond: any feasible? -->
+  <polygon points="521,288 601,318 521,348 441,318" fill="url(#gDec)" stroke="#ca8a04" stroke-width="1.2"/>
+  <text x="521" y="315" text-anchor="middle" font-size="9.5" fill="#0f172a" font-weight="600">Feasible</text>
+  <text x="521" y="327" text-anchor="middle" font-size="9.5" fill="#0f172a" font-weight="600">moves?</text>
+
+  <!-- YES arrow down -->
+  <line x1="521" y1="348" x2="521" y2="370" stroke="#059669" stroke-width="1.2" marker-end="url(#ah1g)"/>
+  <text x="531" y="363" font-size="9" fill="#059669" font-weight="600">YES</text>
+
+  <!-- NO arrow left to deadlock -->
+  <line x1="441" y1="318" x2="140" y2="318" stroke="#dc2626" stroke-width="1.2" marker-end="url(#ah1r)"/>
+  <text x="390" y="312" font-size="9" fill="#dc2626" font-weight="600">NO</text>
+
+  <!-- Deadlock resolution box -->
+  <rect x="60" y="294" width="180" height="48" rx="6" fill="url(#gErr)" stroke="#dc2626" stroke-width="1.2"/>
+  <text x="150" y="314" text-anchor="middle" font-size="10" fill="#991b1b" font-weight="600">Deadlock resolution</text>
+  <text x="150" y="328" text-anchor="middle" font-size="9" fill="#334155">Relax thresholds ±1 dB</text>
+
+  <!-- Arrow from deadlock back up or terminate -->
+  <line x1="150" y1="342" x2="150" y2="370" stroke="#dc2626" stroke-width="1.0" marker-end="url(#ah1r)"/>
+
+  <!-- Deadlock decision: resolved? -->
+  <polygon points="150,376 210,396 150,416 90,396" fill="url(#gDec)" stroke="#ca8a04" stroke-width="1.0"/>
+  <text x="150" y="399" text-anchor="middle" font-size="8.5" fill="#0f172a" font-weight="600">Resolved?</text>
+
+  <!-- YES from deadlock goes right back to scoring -->
+  <line x1="210" y1="396" x2="410" y2="396" stroke="#059669" stroke-width="1.0" marker-end="url(#ah1g)"/>
+  <text x="220" y="390" font-size="8" fill="#059669" font-weight="600">YES</text>
+
+  <!-- NO from deadlock - terminate -->
+  <line x1="90" y1="396" x2="55" y2="396" stroke="#dc2626" stroke-width="1.0"/>
+  <line x1="55" y1="396" x2="55" y2="560" stroke="#dc2626" stroke-width="1.0" marker-end="url(#ah1r)"/>
+  <text x="62" y="430" font-size="8" fill="#dc2626" font-weight="600">STUCK</text>
+
+  <!-- Step 4: Score & Select -->
+  <rect x="410" y="376" width="280" height="42" rx="6" fill="url(#gIter)" stroke="#ca8a04" stroke-width="1.2"/>
+  <text x="550" y="393" text-anchor="middle" font-size="10" fill="#0f172a" font-weight="600">4. Score (asymmetric cost) &amp; select best</text>
+  <text x="550" y="407" text-anchor="middle" font-size="9" fill="#334155">Apply tiebreakers · Record state snapshot</text>
+
+  <!-- Arrow down from score -->
+  <line x1="550" y1="418" x2="550" y2="440" stroke="#334155" stroke-width="1.2" marker-end="url(#ah1)"/>
+
+  <!-- Decision: converged? -->
+  <polygon points="550,446 630,470 550,494 470,470" fill="url(#gDec)" stroke="#ca8a04" stroke-width="1.2"/>
+  <text x="550" y="468" text-anchor="middle" font-size="9.5" fill="#0f172a" font-weight="600">All at</text>
+  <text x="550" y="479" text-anchor="middle" font-size="9.5" fill="#0f172a" font-weight="600">target?</text>
+
+  <!-- NO loops back up to generate -->
+  <line x1="470" y1="470" x2="50" y2="470" stroke="#334155" stroke-width="1.0"/>
+  <line x1="50" y1="470" x2="50" y2="239" stroke="#334155" stroke-width="1.0"/>
+  <line x1="50" y1="239" x2="60" y2="239" stroke="#334155" stroke-width="1.0" marker-end="url(#ah1)"/>
+  <text x="420" y="464" font-size="9" fill="#334155" font-weight="600">NO</text>
+
+  <!-- YES arrow down out of loop -->
+  <line x1="550" y1="494" x2="550" y2="520" stroke="#059669" stroke-width="1.2" marker-end="url(#ah1g)"/>
+  <text x="560" y="512" font-size="9" fill="#059669" font-weight="600">YES</text>
+
+  <!-- END OF LOOP BOX -->
+
+  <!-- OUTPUTS -->
+  <rect x="80" y="540" width="200" height="56" rx="8" fill="url(#gOut)" stroke="#059669" stroke-width="1.5"/>
+  <text x="180" y="562" text-anchor="middle" font-size="10" fill="#065f46" font-weight="700">TRANSITION SEQUENCE</text>
+  <text x="180" y="577" text-anchor="middle" font-size="9.5" fill="#334155">Ordered gain steps + states</text>
+
+  <rect x="320" y="540" width="200" height="56" rx="8" fill="url(#gOut)" stroke="#059669" stroke-width="1.5"/>
+  <text x="420" y="562" text-anchor="middle" font-size="10" fill="#065f46" font-weight="700">METRICS</text>
+  <text x="420" y="577" text-anchor="middle" font-size="9.5" fill="#334155">Max deviation · Violations · Steps</text>
+
+  <rect x="560" y="540" width="200" height="56" rx="8" fill="url(#gOut)" stroke="#059669" stroke-width="1.5"/>
+  <text x="660" y="562" text-anchor="middle" font-size="10" fill="#065f46" font-weight="700">CSV EXPORT</text>
+  <text x="660" y="577" text-anchor="middle" font-size="9.5" fill="#334155">Downloadable gain sequence</text>
+
+  <line x1="550" y1="520" x2="550" y2="530" stroke="#059669" stroke-width="1.2"/>
+  <line x1="180" y1="530" x2="660" y2="530" stroke="#059669" stroke-width="1.2"/>
+  <line x1="180" y1="530" x2="180" y2="540" stroke="#059669" stroke-width="1.2" marker-end="url(#ah1g)"/>
+  <line x1="420" y1="530" x2="420" y2="540" stroke="#059669" stroke-width="1.2" marker-end="url(#ah1g)"/>
+  <line x1="660" y1="530" x2="660" y2="540" stroke="#059669" stroke-width="1.2" marker-end="url(#ah1g)"/>
+
+  <!-- Non-converge output -->
+  <rect x="40" y="540" width="16" height="56" rx="4" fill="#fecaca" stroke="#dc2626" stroke-width="1"/>
+  <text x="48" y="555" font-size="7" fill="#991b1b" font-weight="600" transform="rotate(90,48,555)">NON-CONV</text>
+</svg>
+<figcaption>Figure 0. Top-level CCGS workflow: from operator inputs through the iterative optimization loop to output artifacts.</figcaption>
+</figure>
 
 <!-- ============================================================ -->
 <h2 id="s2">2. System Model</h2>
@@ -353,7 +508,157 @@ Rx Antenna k                                              Tx Antenna m
 
 <p>The algorithm terminates when all gain stages reach their target values, no feasible moves exist, or the iteration limit is reached.</p>
 
-<h3>4.2 Pseudocode</h3>
+<h3>4.2 Detailed Iteration Flowchart</h3>
+
+<p>The following diagram expands the inner loop, showing every decision point and data flow within a single iteration:</p>
+
+<figure>
+<svg class="svg-diagram" viewBox="0 0 820 880" xmlns="http://www.w3.org/2000/svg" font-family="Inter, system-ui, sans-serif">
+  <defs>
+    <marker id="ah2" markerWidth="9" markerHeight="6" refX="9" refY="3" orient="auto"><polygon points="0 0, 9 3, 0 6" fill="#334155"/></marker>
+    <marker id="ah2g" markerWidth="9" markerHeight="6" refX="9" refY="3" orient="auto"><polygon points="0 0, 9 3, 0 6" fill="#059669"/></marker>
+    <marker id="ah2r" markerWidth="9" markerHeight="6" refX="9" refY="3" orient="auto"><polygon points="0 0, 9 3, 0 6" fill="#dc2626"/></marker>
+    <marker id="ah2b" markerWidth="9" markerHeight="6" refX="9" refY="3" orient="auto"><polygon points="0 0, 9 3, 0 6" fill="#2563eb"/></marker>
+  </defs>
+
+  <!-- START -->
+  <ellipse cx="410" cy="30" rx="80" ry="22" fill="#f1f5f9" stroke="#64748b" stroke-width="1.5"/>
+  <text x="410" y="34" text-anchor="middle" font-size="11" fill="#0f172a" font-weight="600">Iteration Start</text>
+  <line x1="410" y1="52" x2="410" y2="74" stroke="#334155" stroke-width="1.2" marker-end="url(#ah2)"/>
+
+  <!-- Check convergence -->
+  <polygon points="410,80 500,108 410,136 320,108" fill="#fef9c3" stroke="#ca8a04" stroke-width="1.3"/>
+  <text x="410" y="106" text-anchor="middle" font-size="9.5" fill="#0f172a" font-weight="600">All gains</text>
+  <text x="410" y="117" text-anchor="middle" font-size="9.5" fill="#0f172a" font-weight="600">at target?</text>
+
+  <!-- YES - converged -->
+  <line x1="500" y1="108" x2="700" y2="108" stroke="#059669" stroke-width="1.2" marker-end="url(#ah2g)"/>
+  <text x="520" y="102" font-size="9" fill="#059669" font-weight="600">YES</text>
+  <rect x="706" y="90" width="100" height="36" rx="16" fill="#d1fae5" stroke="#059669" stroke-width="1.3"/>
+  <text x="756" y="112" text-anchor="middle" font-size="10" fill="#065f46" font-weight="700">CONVERGED</text>
+
+  <!-- NO - continue -->
+  <line x1="410" y1="136" x2="410" y2="160" stroke="#334155" stroke-width="1.2" marker-end="url(#ah2)"/>
+  <text x="420" y="152" font-size="9" fill="#334155" font-weight="600">NO</text>
+
+  <!-- Generate singles -->
+  <rect x="170" y="166" width="220" height="40" rx="6" fill="#eff6ff" stroke="#2563eb" stroke-width="1.2"/>
+  <text x="280" y="183" text-anchor="middle" font-size="10" fill="#1e40af" font-weight="600">Generate single steps</text>
+  <text x="280" y="196" text-anchor="middle" font-size="8.5" fill="#334155">For each stage with Δg ≠ 0</text>
+
+  <!-- Generate pairs -->
+  <rect x="430" y="166" width="220" height="40" rx="6" fill="#eff6ff" stroke="#2563eb" stroke-width="1.2"/>
+  <text x="540" y="183" text-anchor="middle" font-size="10" fill="#1e40af" font-weight="600">Generate compensating pairs</text>
+  <text x="540" y="196" text-anchor="middle" font-size="8.5" fill="#334155">Shared gain + per-ch offsets</text>
+
+  <!-- Arrows from both down to merge -->
+  <line x1="280" y1="206" x2="280" y2="228" stroke="#334155" stroke-width="1.0"/>
+  <line x1="540" y1="206" x2="540" y2="228" stroke="#334155" stroke-width="1.0"/>
+  <line x1="280" y1="228" x2="540" y2="228" stroke="#334155" stroke-width="1.0"/>
+  <line x1="410" y1="228" x2="410" y2="248" stroke="#334155" stroke-width="1.2" marker-end="url(#ah2)"/>
+
+  <!-- Merge box -->
+  <rect x="300" y="254" width="220" height="32" rx="6" fill="#f1f5f9" stroke="#64748b" stroke-width="1"/>
+  <text x="410" y="274" text-anchor="middle" font-size="10" fill="#0f172a" font-weight="600">Candidate pool (singles ∪ pairs)</text>
+
+  <line x1="410" y1="286" x2="410" y2="310" stroke="#334155" stroke-width="1.2" marker-end="url(#ah2)"/>
+
+  <!-- FILTER PIPELINE -->
+  <rect x="120" y="314" width="580" height="170" rx="10" fill="none" stroke="#7c3aed" stroke-width="1.5" stroke-dasharray="5,3"/>
+  <text x="140" y="332" font-size="10" fill="#7c3aed" font-weight="700">FEASIBILITY FILTER PIPELINE</text>
+
+  <!-- Filter 1: Power thresholds -->
+  <rect x="150" y="342" width="250" height="44" rx="6" fill="#faf5ff" stroke="#7c3aed" stroke-width="1.2"/>
+  <text x="275" y="360" text-anchor="middle" font-size="10" fill="#581c87" font-weight="600">Filter 1: Power thresholds</text>
+  <text x="275" y="374" text-anchor="middle" font-size="8.5" fill="#334155">∀s: L_s ≤ P_s(g) ≤ U_s</text>
+
+  <line x1="400" y1="364" x2="430" y2="364" stroke="#334155" stroke-width="1.0" marker-end="url(#ah2)"/>
+
+  <!-- Filter 2: EIRP deviation -->
+  <rect x="436" y="342" width="250" height="44" rx="6" fill="#faf5ff" stroke="#7c3aed" stroke-width="1.2"/>
+  <text x="561" y="360" text-anchor="middle" font-size="10" fill="#581c87" font-weight="600">Filter 2: EIRP deviation D_max</text>
+  <text x="561" y="374" text-anchor="middle" font-size="8.5" fill="#334155">∀c: |ΔEIRP_c| ≤ D_max (if set)</text>
+
+  <!-- Rejected count -->
+  <rect x="310" y="396" width="180" height="28" rx="4" fill="#fef2f2" stroke="#fca5a5" stroke-width="1"/>
+  <text x="400" y="414" text-anchor="middle" font-size="8.5" fill="#991b1b">Rejected candidates discarded</text>
+
+  <!-- Arrow from filter 2 through rejected -->
+  <line x1="561" y1="386" x2="561" y2="450" stroke="#334155" stroke-width="1.0"/>
+  <line x1="561" y1="450" x2="410" y2="450" stroke="#334155" stroke-width="1.0"/>
+
+  <!-- Arrow out of pipeline -->
+  <line x1="410" y1="450" x2="410" y2="460" stroke="#334155" stroke-width="1.0"/>
+  <line x1="410" y1="484" x2="410" y2="500" stroke="#334155" stroke-width="1.2" marker-end="url(#ah2)"/>
+
+  <!-- Decision: any feasible? -->
+  <polygon points="410,506 500,534 410,562 320,534" fill="#fef9c3" stroke="#ca8a04" stroke-width="1.3"/>
+  <text x="410" y="531" text-anchor="middle" font-size="9.5" fill="#0f172a" font-weight="600">Any</text>
+  <text x="410" y="543" text-anchor="middle" font-size="9.5" fill="#0f172a" font-weight="600">feasible?</text>
+
+  <!-- NO to deadlock -->
+  <line x1="320" y1="534" x2="140" y2="534" stroke="#dc2626" stroke-width="1.2" marker-end="url(#ah2r)"/>
+  <text x="275" y="528" font-size="9" fill="#dc2626" font-weight="600">NO</text>
+
+  <!-- Deadlock resolution -->
+  <rect x="30" y="510" width="180" height="48" rx="6" fill="#fef2f2" stroke="#dc2626" stroke-width="1.2"/>
+  <text x="120" y="530" text-anchor="middle" font-size="9.5" fill="#991b1b" font-weight="600">Deadlock Resolution</text>
+  <text x="120" y="544" text-anchor="middle" font-size="8.5" fill="#334155">Relax thresholds ±1 dB</text>
+
+  <line x1="120" y1="558" x2="120" y2="582" stroke="#dc2626" stroke-width="1.0" marker-end="url(#ah2r)"/>
+
+  <!-- Deadlock resolved? -->
+  <polygon points="120,588 185,608 120,628 55,608" fill="#fef9c3" stroke="#ca8a04" stroke-width="1.0"/>
+  <text x="120" y="611" text-anchor="middle" font-size="8.5" fill="#0f172a" font-weight="600">Found?</text>
+
+  <!-- Deadlock YES -> goes to scoring -->
+  <line x1="185" y1="608" x2="410" y2="608" stroke="#059669" stroke-width="1.0"/>
+  <line x1="410" y1="608" x2="410" y2="640" stroke="#059669" stroke-width="1.0" marker-end="url(#ah2g)"/>
+  <text x="210" y="602" font-size="8" fill="#059669" font-weight="600">YES</text>
+
+  <!-- Deadlock NO -> terminate -->
+  <line x1="55" y1="608" x2="30" y2="608" stroke="#dc2626" stroke-width="1.0"/>
+  <line x1="30" y1="608" x2="30" y2="840" stroke="#dc2626" stroke-width="1.0" marker-end="url(#ah2r)"/>
+  <text x="14" y="650" font-size="8" fill="#dc2626" font-weight="600" transform="rotate(90,14,650)">TERMINATE</text>
+
+  <!-- YES to scoring -->
+  <line x1="410" y1="562" x2="410" y2="640" stroke="#059669" stroke-width="1.2" marker-end="url(#ah2g)"/>
+  <text x="420" y="580" font-size="9" fill="#059669" font-weight="600">YES</text>
+
+  <!-- SCORING -->
+  <rect x="260" y="646" width="300" height="44" rx="6" fill="#fefce8" stroke="#ca8a04" stroke-width="1.3"/>
+  <text x="410" y="664" text-anchor="middle" font-size="10" fill="#0f172a" font-weight="600">Score candidates</text>
+  <text x="410" y="678" text-anchor="middle" font-size="8.5" fill="#334155">J(Δ) = w⁻·max(0,−Δ) + w⁺·max(0,Δ) → sort ASC</text>
+
+  <line x1="410" y1="690" x2="410" y2="714" stroke="#334155" stroke-width="1.2" marker-end="url(#ah2)"/>
+
+  <!-- TIEBREAK -->
+  <rect x="260" y="720" width="300" height="44" rx="6" fill="#fefce8" stroke="#ca8a04" stroke-width="1.2"/>
+  <text x="410" y="738" text-anchor="middle" font-size="10" fill="#0f172a" font-weight="600">Apply tiebreakers</text>
+  <text x="410" y="752" text-anchor="middle" font-size="8.5" fill="#334155">Pairs preferred → inner-first → fewer steps</text>
+
+  <line x1="410" y1="764" x2="410" y2="786" stroke="#334155" stroke-width="1.2" marker-end="url(#ah2)"/>
+
+  <!-- APPLY & RECORD -->
+  <rect x="260" y="792" width="300" height="44" rx="6" fill="#ecfdf5" stroke="#059669" stroke-width="1.3"/>
+  <text x="410" y="810" text-anchor="middle" font-size="10" fill="#065f46" font-weight="600">Apply best move · Record state</text>
+  <text x="410" y="824" text-anchor="middle" font-size="8.5" fill="#334155">Gain values, EIRP, power levels → snapshot</text>
+
+  <!-- Arrow back to top (next iteration) -->
+  <line x1="410" y1="836" x2="410" y2="856" stroke="#334155" stroke-width="1.2"/>
+  <line x1="410" y1="856" x2="770" y2="856" stroke="#334155" stroke-width="1.0"/>
+  <line x1="770" y1="856" x2="770" y2="30" stroke="#334155" stroke-width="1.0"/>
+  <line x1="770" y1="30" x2="500" y2="30" stroke="#334155" stroke-width="1.0" marker-end="url(#ah2)"/>
+  <text x="600" y="850" font-size="9" fill="#334155" font-weight="600">NEXT ITERATION</text>
+
+  <!-- Non-convergence end -->
+  <rect x="14" y="846" width="100" height="28" rx="12" fill="#fecaca" stroke="#dc2626" stroke-width="1.3"/>
+  <text x="64" y="864" text-anchor="middle" font-size="9" fill="#991b1b" font-weight="700">NOT CONVERGED</text>
+</svg>
+<figcaption>Figure 2. Detailed iteration flowchart showing candidate generation, the two-stage feasibility filter pipeline, scoring, tiebreaking, and deadlock resolution paths.</figcaption>
+</figure>
+
+<h3>4.3 Pseudocode</h3>
 
 <pre><code>function CCGS(channels, gainStages, params):
     couplingMap &larr; buildCouplingMap(channels)
@@ -415,6 +720,140 @@ Rx Antenna k                                              Tx Antenna m
 
 <p>When the shared and per-channel granularities are equal, the net EIRP change per channel is exactly zero. When granularities differ, the residual is bounded by the granularity difference.</p>
 
+<figure>
+<svg class="svg-diagram" viewBox="0 0 820 380" xmlns="http://www.w3.org/2000/svg" font-family="Inter, system-ui, sans-serif">
+  <defs>
+    <marker id="ah3" markerWidth="9" markerHeight="6" refX="9" refY="3" orient="auto"><polygon points="0 0, 9 3, 0 6" fill="#334155"/></marker>
+    <marker id="ah3up" markerWidth="9" markerHeight="6" refX="9" refY="3" orient="auto"><polygon points="0 0, 9 3, 0 6" fill="#059669"/></marker>
+    <marker id="ah3dn" markerWidth="9" markerHeight="6" refX="9" refY="3" orient="auto"><polygon points="0 0, 9 3, 0 6" fill="#dc2626"/></marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="410" y="22" text-anchor="middle" font-size="12" fill="#0f172a" font-weight="700">Compensating Pair: G1 (shared) + G3 offsets (per-channel)</text>
+
+  <!-- BEFORE state label -->
+  <text x="30" y="60" font-size="11" fill="#64748b" font-weight="700">BEFORE</text>
+
+  <!-- G1 shared box -->
+  <rect x="120" y="45" width="120" height="40" rx="6" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="180" y="63" text-anchor="middle" font-size="10" fill="#1e40af" font-weight="700">G1 (LNA)</text>
+  <text x="180" y="77" text-anchor="middle" font-size="9" fill="#334155">30.0 dB</text>
+
+  <!-- Channels fan out -->
+  <line x1="240" y1="65" x2="290" y2="50" stroke="#334155" stroke-width="1"/>
+  <line x1="240" y1="65" x2="290" y2="80" stroke="#334155" stroke-width="1"/>
+
+  <!-- CH-A before -->
+  <rect x="296" y="34" width="90" height="32" rx="4" fill="#d1fae5" stroke="#059669" stroke-width="1"/>
+  <text x="341" y="48" text-anchor="middle" font-size="9" fill="#065f46" font-weight="600">G3 (CH-A)</text>
+  <text x="341" y="60" text-anchor="middle" font-size="9" fill="#334155">5.0 dB</text>
+
+  <!-- CH-B before -->
+  <rect x="296" y="72" width="90" height="32" rx="4" fill="#d1fae5" stroke="#059669" stroke-width="1"/>
+  <text x="341" y="86" text-anchor="middle" font-size="9" fill="#065f46" font-weight="600">G3 (CH-B)</text>
+  <text x="341" y="98" text-anchor="middle" font-size="9" fill="#334155">5.0 dB</text>
+
+  <!-- EIRP before -->
+  <line x1="386" y1="50" x2="480" y2="50" stroke="#334155" stroke-width="1" marker-end="url(#ah3)"/>
+  <line x1="386" y1="88" x2="480" y2="88" stroke="#334155" stroke-width="1" marker-end="url(#ah3)"/>
+
+  <rect x="486" y="34" width="120" height="32" rx="4" fill="#f1f5f9" stroke="#64748b" stroke-width="1"/>
+  <text x="546" y="48" text-anchor="middle" font-size="9" fill="#334155" font-weight="600">EIRP CH-A</text>
+  <text x="546" y="60" text-anchor="middle" font-size="10" fill="#0f172a" font-weight="700">56.0 dBm</text>
+
+  <rect x="486" y="72" width="120" height="32" rx="4" fill="#f1f5f9" stroke="#64748b" stroke-width="1"/>
+  <text x="546" y="86" text-anchor="middle" font-size="9" fill="#334155" font-weight="600">EIRP CH-B</text>
+  <text x="546" y="98" text-anchor="middle" font-size="10" fill="#0f172a" font-weight="700">56.0 dBm</text>
+
+  <!-- Divider -->
+  <line x1="30" y1="120" x2="790" y2="120" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="4,4"/>
+
+  <!-- NAIVE (single step on G1 only) -->
+  <text x="30" y="152" font-size="11" fill="#dc2626" font-weight="700">NAIVE</text>
+  <text x="30" y="166" font-size="9" fill="#64748b">(G1 only)</text>
+
+  <rect x="120" y="137" width="120" height="40" rx="6" fill="#fecaca" stroke="#dc2626" stroke-width="1.5"/>
+  <text x="180" y="155" text-anchor="middle" font-size="10" fill="#991b1b" font-weight="700">G1 (LNA)</text>
+  <text x="180" y="169" text-anchor="middle" font-size="9" fill="#991b1b">30.5 dB (+0.5)</text>
+
+  <line x1="240" y1="157" x2="290" y2="142" stroke="#334155" stroke-width="1"/>
+  <line x1="240" y1="157" x2="290" y2="172" stroke="#334155" stroke-width="1"/>
+
+  <rect x="296" y="126" width="90" height="32" rx="4" fill="#d1fae5" stroke="#059669" stroke-width="1"/>
+  <text x="341" y="140" text-anchor="middle" font-size="9" fill="#065f46" font-weight="600">G3 (CH-A)</text>
+  <text x="341" y="152" text-anchor="middle" font-size="9" fill="#334155">5.0 dB</text>
+
+  <rect x="296" y="164" width="90" height="32" rx="4" fill="#d1fae5" stroke="#059669" stroke-width="1"/>
+  <text x="341" y="178" text-anchor="middle" font-size="9" fill="#065f46" font-weight="600">G3 (CH-B)</text>
+  <text x="341" y="190" text-anchor="middle" font-size="9" fill="#334155">5.0 dB</text>
+
+  <line x1="386" y1="142" x2="480" y2="142" stroke="#334155" stroke-width="1" marker-end="url(#ah3)"/>
+  <line x1="386" y1="180" x2="480" y2="180" stroke="#334155" stroke-width="1" marker-end="url(#ah3)"/>
+
+  <rect x="486" y="126" width="120" height="32" rx="4" fill="#fef2f2" stroke="#dc2626" stroke-width="1.5"/>
+  <text x="546" y="140" text-anchor="middle" font-size="9" fill="#334155" font-weight="600">EIRP CH-A</text>
+  <text x="546" y="152" text-anchor="middle" font-size="10" fill="#dc2626" font-weight="700">56.5 dBm</text>
+
+  <rect x="486" y="164" width="120" height="32" rx="4" fill="#fef2f2" stroke="#dc2626" stroke-width="1.5"/>
+  <text x="546" y="178" text-anchor="middle" font-size="9" fill="#334155" font-weight="600">EIRP CH-B</text>
+  <text x="546" y="190" text-anchor="middle" font-size="10" fill="#dc2626" font-weight="700">56.5 dBm</text>
+
+  <!-- Impact markers -->
+  <rect x="640" y="135" width="140" height="24" rx="4" fill="#fecaca" stroke="#dc2626" stroke-width="1"/>
+  <text x="710" y="151" text-anchor="middle" font-size="9" fill="#991b1b" font-weight="700">⚠ +0.5 dB deviation</text>
+  <rect x="640" y="173" width="140" height="24" rx="4" fill="#fecaca" stroke="#dc2626" stroke-width="1"/>
+  <text x="710" y="189" text-anchor="middle" font-size="9" fill="#991b1b" font-weight="700">⚠ +0.5 dB deviation</text>
+
+  <!-- Divider -->
+  <line x1="30" y1="212" x2="790" y2="212" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="4,4"/>
+
+  <!-- COMPENSATING PAIR -->
+  <text x="30" y="244" font-size="11" fill="#059669" font-weight="700">PAIR</text>
+  <text x="30" y="258" font-size="9" fill="#64748b">(G1 + G3s)</text>
+
+  <rect x="120" y="229" width="120" height="40" rx="6" fill="#bbf7d0" stroke="#059669" stroke-width="1.5"/>
+  <text x="180" y="247" text-anchor="middle" font-size="10" fill="#065f46" font-weight="700">G1 (LNA)</text>
+  <text x="180" y="261" text-anchor="middle" font-size="9" fill="#065f46">30.5 dB (+0.5)</text>
+
+  <line x1="240" y1="249" x2="290" y2="234" stroke="#334155" stroke-width="1"/>
+  <line x1="240" y1="249" x2="290" y2="264" stroke="#334155" stroke-width="1"/>
+
+  <rect x="296" y="218" width="90" height="32" rx="4" fill="#bbf7d0" stroke="#059669" stroke-width="1.5"/>
+  <text x="341" y="232" text-anchor="middle" font-size="9" fill="#065f46" font-weight="600">G3 (CH-A)</text>
+  <text x="341" y="244" text-anchor="middle" font-size="9" fill="#065f46">4.75 dB (−0.25)</text>
+
+  <rect x="296" y="256" width="90" height="32" rx="4" fill="#bbf7d0" stroke="#059669" stroke-width="1.5"/>
+  <text x="341" y="270" text-anchor="middle" font-size="9" fill="#065f46" font-weight="600">G3 (CH-B)</text>
+  <text x="341" y="282" text-anchor="middle" font-size="9" fill="#065f46">4.75 dB (−0.25)</text>
+
+  <line x1="386" y1="234" x2="480" y2="234" stroke="#334155" stroke-width="1" marker-end="url(#ah3)"/>
+  <line x1="386" y1="272" x2="480" y2="272" stroke="#334155" stroke-width="1" marker-end="url(#ah3)"/>
+
+  <rect x="486" y="218" width="120" height="32" rx="4" fill="#ecfdf5" stroke="#059669" stroke-width="1.5"/>
+  <text x="546" y="232" text-anchor="middle" font-size="9" fill="#334155" font-weight="600">EIRP CH-A</text>
+  <text x="546" y="244" text-anchor="middle" font-size="10" fill="#059669" font-weight="700">56.25 dBm</text>
+
+  <rect x="486" y="256" width="120" height="32" rx="4" fill="#ecfdf5" stroke="#059669" stroke-width="1.5"/>
+  <text x="546" y="270" text-anchor="middle" font-size="9" fill="#334155" font-weight="600">EIRP CH-B</text>
+  <text x="546" y="282" text-anchor="middle" font-size="10" fill="#059669" font-weight="700">56.25 dBm</text>
+
+  <!-- Impact markers -->
+  <rect x="640" y="227" width="140" height="24" rx="4" fill="#d1fae5" stroke="#059669" stroke-width="1"/>
+  <text x="710" y="243" text-anchor="middle" font-size="9" fill="#065f46" font-weight="700">✓ +0.25 dB residual</text>
+  <rect x="640" y="265" width="140" height="24" rx="4" fill="#d1fae5" stroke="#059669" stroke-width="1"/>
+  <text x="710" y="281" text-anchor="middle" font-size="9" fill="#065f46" font-weight="700">✓ +0.25 dB residual</text>
+
+  <!-- Divider -->
+  <line x1="30" y1="305" x2="790" y2="305" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="4,4"/>
+
+  <!-- Explanation -->
+  <text x="410" y="330" text-anchor="middle" font-size="10" fill="#0f172a" font-weight="600">Residual = |δ_shared| − |δ_per-channel| = 0.5 − 0.25 = 0.25 dB</text>
+  <text x="410" y="348" text-anchor="middle" font-size="9.5" fill="#64748b">When granularities match (both 0.25 dB), the residual is exactly 0.00 dB</text>
+  <text x="410" y="366" text-anchor="middle" font-size="9.5" fill="#64748b">The pair makes progress on the shared gain while bounding EIRP disruption</text>
+</svg>
+<figcaption>Figure 3. Compensating pair mechanism: a naive single step on G1 causes +0.5 dB EIRP deviation on all affected channels, while a compensating pair offsets the impact with per-channel G3 adjustments, reducing the residual to the granularity difference.</figcaption>
+</figure>
+
 <p>For each shared stage with remaining delta, the algorithm generates up to 3 compensating pairs (one per compensating gain type G3, G4, G5), provided all affected channels have the corresponding per-channel gain available. This yields at most <code>3 &middot; |S<sub>shared</sub>|</code> additional candidates.</p>
 
 <h3>5.3 Candidate Pool Size</h3>
@@ -439,7 +878,132 @@ Rx Antenna k                                              Tx Antenna m
   <li><strong>Check thresholds:</strong> Verify that the aggregated power at every stage falls within <code>[L<sub>s</sub>, U<sub>s</sub>]</code>. A tolerance of 0.001 dB is applied to avoid floating-point rejection of boundary-valid states.</li>
 </ol>
 
-<h3>6.2 Cost of Feasibility Checking</h3>
+<h3>6.2 Power Level Cascade &amp; Threshold Checking</h3>
+
+<p>The following diagram shows how power propagates through the gain chain and where threshold checks are applied:</p>
+
+<figure>
+<svg class="svg-diagram" viewBox="0 0 820 340" xmlns="http://www.w3.org/2000/svg" font-family="Inter, system-ui, sans-serif">
+  <defs>
+    <marker id="ah4" markerWidth="8" markerHeight="5" refX="8" refY="2.5" orient="auto"><polygon points="0 0, 8 2.5, 0 5" fill="#334155"/></marker>
+  </defs>
+
+  <!-- Stage boxes across the top -->
+  <rect x="20" y="30" width="88" height="60" rx="6" fill="#dbeafe" stroke="#2563eb" stroke-width="1.3"/>
+  <text x="64" y="50" text-anchor="middle" font-size="10" fill="#1e40af" font-weight="700">G1 (LNA)</text>
+  <text x="64" y="63" text-anchor="middle" font-size="8" fill="#334155">SHARED</text>
+  <text x="64" y="80" text-anchor="middle" font-size="9" fill="#0f172a" font-weight="600">30.0 dB</text>
+
+  <line x1="108" y1="60" x2="128" y2="60" stroke="#334155" stroke-width="1.2" marker-end="url(#ah4)"/>
+
+  <rect x="134" y="30" width="88" height="60" rx="6" fill="#dbeafe" stroke="#2563eb" stroke-width="1.3"/>
+  <text x="178" y="50" text-anchor="middle" font-size="10" fill="#1e40af" font-weight="700">G2 (DEMUX)</text>
+  <text x="178" y="63" text-anchor="middle" font-size="8" fill="#334155">SHARED</text>
+  <text x="178" y="80" text-anchor="middle" font-size="9" fill="#0f172a" font-weight="600">10.0 dB</text>
+
+  <line x1="222" y1="60" x2="242" y2="60" stroke="#334155" stroke-width="1.2" marker-end="url(#ah4)"/>
+
+  <rect x="248" y="30" width="78" height="60" rx="6" fill="#d1fae5" stroke="#059669" stroke-width="1.3"/>
+  <text x="287" y="50" text-anchor="middle" font-size="10" fill="#065f46" font-weight="700">G3</text>
+  <text x="287" y="63" text-anchor="middle" font-size="8" fill="#334155">PER-CH</text>
+  <text x="287" y="80" text-anchor="middle" font-size="9" fill="#0f172a" font-weight="600">5.0 dB</text>
+
+  <line x1="326" y1="60" x2="346" y2="60" stroke="#334155" stroke-width="1.2" marker-end="url(#ah4)"/>
+
+  <rect x="352" y="30" width="78" height="60" rx="6" fill="#d1fae5" stroke="#059669" stroke-width="1.3"/>
+  <text x="391" y="50" text-anchor="middle" font-size="10" fill="#065f46" font-weight="700">G4</text>
+  <text x="391" y="63" text-anchor="middle" font-size="8" fill="#334155">PER-CH</text>
+  <text x="391" y="80" text-anchor="middle" font-size="9" fill="#0f172a" font-weight="600">5.0 dB</text>
+
+  <line x1="430" y1="60" x2="450" y2="60" stroke="#334155" stroke-width="1.2" marker-end="url(#ah4)"/>
+
+  <rect x="456" y="30" width="78" height="60" rx="6" fill="#d1fae5" stroke="#059669" stroke-width="1.3"/>
+  <text x="495" y="50" text-anchor="middle" font-size="10" fill="#065f46" font-weight="700">G5</text>
+  <text x="495" y="63" text-anchor="middle" font-size="8" fill="#334155">PER-CH</text>
+  <text x="495" y="80" text-anchor="middle" font-size="9" fill="#0f172a" font-weight="600">10.0 dB</text>
+
+  <line x1="534" y1="60" x2="554" y2="60" stroke="#334155" stroke-width="1.2" marker-end="url(#ah4)"/>
+
+  <rect x="560" y="30" width="88" height="60" rx="6" fill="#dbeafe" stroke="#2563eb" stroke-width="1.3"/>
+  <text x="604" y="50" text-anchor="middle" font-size="10" fill="#1e40af" font-weight="700">G6 (MUX)</text>
+  <text x="604" y="63" text-anchor="middle" font-size="8" fill="#334155">SHARED</text>
+  <text x="604" y="80" text-anchor="middle" font-size="9" fill="#0f172a" font-weight="600">10.0 dB</text>
+
+  <line x1="648" y1="60" x2="668" y2="60" stroke="#334155" stroke-width="1.2" marker-end="url(#ah4)"/>
+
+  <rect x="674" y="30" width="88" height="60" rx="6" fill="#dbeafe" stroke="#2563eb" stroke-width="1.3"/>
+  <text x="718" y="50" text-anchor="middle" font-size="10" fill="#1e40af" font-weight="700">G7 (HPA)</text>
+  <text x="718" y="63" text-anchor="middle" font-size="8" fill="#334155">SHARED</text>
+  <text x="718" y="80" text-anchor="middle" font-size="9" fill="#0f172a" font-weight="600">40.0 dB</text>
+
+  <!-- Power levels row -->
+  <text x="410" y="112" text-anchor="middle" font-size="10" fill="#7c3aed" font-weight="700">POWER AT EACH STAGE OUTPUT (for one channel, P_in = −54.0 dBm)</text>
+
+  <!-- Power level bars -->
+  <rect x="20" y="122" width="88" height="28" rx="4" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1"/>
+  <text x="64" y="140" text-anchor="middle" font-size="9" fill="#0f172a" font-weight="600">−24.0 dBm</text>
+
+  <rect x="134" y="122" width="88" height="28" rx="4" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1"/>
+  <text x="178" y="140" text-anchor="middle" font-size="9" fill="#0f172a" font-weight="600">−14.0 dBm</text>
+
+  <rect x="248" y="122" width="78" height="28" rx="4" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1"/>
+  <text x="287" y="140" text-anchor="middle" font-size="9" fill="#0f172a" font-weight="600">−9.0 dBm</text>
+
+  <rect x="352" y="122" width="78" height="28" rx="4" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1"/>
+  <text x="391" y="140" text-anchor="middle" font-size="9" fill="#0f172a" font-weight="600">−4.0 dBm</text>
+
+  <rect x="456" y="122" width="78" height="28" rx="4" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1"/>
+  <text x="495" y="140" text-anchor="middle" font-size="9" fill="#0f172a" font-weight="600">6.0 dBm</text>
+
+  <rect x="560" y="122" width="88" height="28" rx="4" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1"/>
+  <text x="604" y="140" text-anchor="middle" font-size="9" fill="#0f172a" font-weight="600">16.0 dBm</text>
+
+  <rect x="674" y="122" width="88" height="28" rx="4" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1"/>
+  <text x="718" y="140" text-anchor="middle" font-size="9" fill="#0f172a" font-weight="600">56.0 dBm</text>
+
+  <!-- Threshold check row -->
+  <text x="410" y="172" text-anchor="middle" font-size="10" fill="#dc2626" font-weight="700">THRESHOLD CHECK AT EACH STAGE</text>
+
+  <!-- Threshold ranges with pass/fail indicators -->
+  <rect x="20" y="182" width="88" height="40" rx="4" fill="#ecfdf5" stroke="#059669" stroke-width="1"/>
+  <text x="64" y="198" text-anchor="middle" font-size="8" fill="#334155">[−30, −15] dBm</text>
+  <text x="64" y="213" text-anchor="middle" font-size="9" fill="#059669" font-weight="700">✓ PASS</text>
+
+  <rect x="134" y="182" width="88" height="40" rx="4" fill="#ecfdf5" stroke="#059669" stroke-width="1"/>
+  <text x="178" y="198" text-anchor="middle" font-size="8" fill="#334155">[−20, −5] dBm</text>
+  <text x="178" y="213" text-anchor="middle" font-size="9" fill="#059669" font-weight="700">✓ PASS</text>
+
+  <rect x="248" y="182" width="78" height="40" rx="4" fill="#ecfdf5" stroke="#059669" stroke-width="1"/>
+  <text x="287" y="198" text-anchor="middle" font-size="8" fill="#334155">[−15, 0] dBm</text>
+  <text x="287" y="213" text-anchor="middle" font-size="9" fill="#059669" font-weight="700">✓ PASS</text>
+
+  <rect x="352" y="182" width="78" height="40" rx="4" fill="#ecfdf5" stroke="#059669" stroke-width="1"/>
+  <text x="391" y="198" text-anchor="middle" font-size="8" fill="#334155">[−10, 5] dBm</text>
+  <text x="391" y="213" text-anchor="middle" font-size="9" fill="#059669" font-weight="700">✓ PASS</text>
+
+  <rect x="456" y="182" width="78" height="40" rx="4" fill="#ecfdf5" stroke="#059669" stroke-width="1"/>
+  <text x="495" y="198" text-anchor="middle" font-size="8" fill="#334155">[0, 15] dBm</text>
+  <text x="495" y="213" text-anchor="middle" font-size="9" fill="#059669" font-weight="700">✓ PASS</text>
+
+  <rect x="560" y="182" width="88" height="40" rx="4" fill="#ecfdf5" stroke="#059669" stroke-width="1"/>
+  <text x="604" y="198" text-anchor="middle" font-size="8" fill="#334155">[10, 25] dBm</text>
+  <text x="604" y="213" text-anchor="middle" font-size="9" fill="#059669" font-weight="700">✓ PASS</text>
+
+  <rect x="674" y="182" width="88" height="40" rx="4" fill="#ecfdf5" stroke="#059669" stroke-width="1"/>
+  <text x="718" y="198" text-anchor="middle" font-size="8" fill="#334155">[45, 65] dBm</text>
+  <text x="718" y="213" text-anchor="middle" font-size="9" fill="#059669" font-weight="700">✓ PASS</text>
+
+  <!-- Note about shared stages -->
+  <rect x="20" y="240" width="760" height="80" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="1"/>
+  <text x="40" y="260" font-size="10" fill="#1e40af" font-weight="700">⚠ Shared stage aggregation (G1, G2, G6, G7)</text>
+  <text x="40" y="278" font-size="9" fill="#334155">For shared stages, the threshold is checked against the aggregate power of all channels flowing through the stage:</text>
+  <text x="40" y="296" font-size="9" fill="#0f172a" font-family="JetBrains Mono, monospace">P_total = 10·log₁₀( Σ 10^(P_ch/10) )     Example: 2 channels at −24.0 dBm → P_total = −21.0 dBm</text>
+  <text x="40" y="312" font-size="9" fill="#334155">A candidate move that passes per-channel checks may still fail at a shared stage if the aggregate exceeds the threshold.</text>
+</svg>
+<figcaption>Figure 4. Power level cascade through the 7-stage gain chain with threshold verification at each stage. Shared stages use linear-domain aggregation of all contributing channels.</figcaption>
+</figure>
+
+<h3>6.3 Cost of Feasibility Checking</h3>
 
 <p>Each feasibility check requires computing power at all stages for all channels:</p>
 <span class="eq">O(C &middot; 7) = O(C) per candidate</span>
@@ -492,7 +1056,113 @@ Rx Antenna k                                              Tx Antenna m
   <strong>Interaction with deadlock resolution.</strong> When the hard EIRP constraint is active and all feasible candidates are eliminated, the algorithm enters deadlock resolution (threshold relaxation). The EIRP constraint is <em>not</em> relaxed during deadlock resolution&mdash;only power thresholds are. This ensures the EIRP guarantee is never violated. If no move satisfies both the relaxed thresholds and the EIRP bound, the algorithm terminates with <code>converged = false</code>.
 </div>
 
-<h3>7.3 Tiebreaking Rules</h3>
+<h3>7.3 Scoring Pipeline Diagram</h3>
+
+<figure>
+<svg class="svg-diagram" viewBox="0 0 820 300" xmlns="http://www.w3.org/2000/svg" font-family="Inter, system-ui, sans-serif">
+  <defs>
+    <marker id="ah5" markerWidth="9" markerHeight="6" refX="9" refY="3" orient="auto"><polygon points="0 0, 9 3, 0 6" fill="#334155"/></marker>
+    <marker id="ah5r" markerWidth="9" markerHeight="6" refX="9" refY="3" orient="auto"><polygon points="0 0, 9 3, 0 6" fill="#dc2626"/></marker>
+    <marker id="ah5g" markerWidth="9" markerHeight="6" refX="9" refY="3" orient="auto"><polygon points="0 0, 9 3, 0 6" fill="#059669"/></marker>
+  </defs>
+
+  <!-- Input pool -->
+  <rect x="20" y="20" width="120" height="60" rx="8" fill="#f1f5f9" stroke="#64748b" stroke-width="1.5"/>
+  <text x="80" y="42" text-anchor="middle" font-size="10" fill="#0f172a" font-weight="700">All Candidates</text>
+  <text x="80" y="56" text-anchor="middle" font-size="9" fill="#334155">N singles</text>
+  <text x="80" y="68" text-anchor="middle" font-size="9" fill="#334155">M pairs</text>
+
+  <line x1="140" y1="50" x2="170" y2="50" stroke="#334155" stroke-width="1.2" marker-end="url(#ah5)"/>
+
+  <!-- Filter 1 -->
+  <rect x="176" y="20" width="140" height="60" rx="8" fill="#faf5ff" stroke="#7c3aed" stroke-width="1.5"/>
+  <text x="246" y="40" text-anchor="middle" font-size="10" fill="#581c87" font-weight="700">Power Filter</text>
+  <text x="246" y="55" text-anchor="middle" font-size="8.5" fill="#334155">∀s: L_s ≤ P_s ≤ U_s</text>
+  <text x="246" y="68" text-anchor="middle" font-size="8.5" fill="#dc2626">Reject violations</text>
+
+  <line x1="316" y1="50" x2="340" y2="50" stroke="#334155" stroke-width="1.2" marker-end="url(#ah5)"/>
+
+  <!-- Filter 2 -->
+  <rect x="346" y="20" width="140" height="60" rx="8" fill="#faf5ff" stroke="#7c3aed" stroke-width="1.5"/>
+  <text x="416" y="40" text-anchor="middle" font-size="10" fill="#581c87" font-weight="700">EIRP Filter</text>
+  <text x="416" y="55" text-anchor="middle" font-size="8.5" fill="#334155">|ΔEIRP_c| ≤ D_max</text>
+  <text x="416" y="68" text-anchor="middle" font-size="8.5" fill="#64748b">(if D_max set)</text>
+
+  <line x1="486" y1="50" x2="510" y2="50" stroke="#334155" stroke-width="1.2" marker-end="url(#ah5)"/>
+
+  <!-- Scoring -->
+  <rect x="516" y="20" width="140" height="60" rx="8" fill="#fefce8" stroke="#ca8a04" stroke-width="1.5"/>
+  <text x="586" y="40" text-anchor="middle" font-size="10" fill="#92400e" font-weight="700">Score</text>
+  <text x="586" y="55" text-anchor="middle" font-size="8.5" fill="#334155">w⁻·max(0,−Δ)</text>
+  <text x="586" y="68" text-anchor="middle" font-size="8.5" fill="#334155">+ w⁺·max(0,+Δ)</text>
+
+  <line x1="656" y1="50" x2="680" y2="50" stroke="#334155" stroke-width="1.2" marker-end="url(#ah5)"/>
+
+  <!-- Sort & Select -->
+  <rect x="686" y="20" width="120" height="60" rx="8" fill="#ecfdf5" stroke="#059669" stroke-width="1.5"/>
+  <text x="746" y="42" text-anchor="middle" font-size="10" fill="#065f46" font-weight="700">Sort &amp; Select</text>
+  <text x="746" y="56" text-anchor="middle" font-size="9" fill="#334155">Score ASC</text>
+  <text x="746" y="68" text-anchor="middle" font-size="9" fill="#334155">+ tiebreakers</text>
+
+  <!-- Rejected arrows going down -->
+  <line x1="246" y1="80" x2="246" y2="110" stroke="#dc2626" stroke-width="1" marker-end="url(#ah5r)"/>
+  <text x="246" y="126" text-anchor="middle" font-size="8.5" fill="#dc2626" font-weight="600">Rejected</text>
+
+  <line x1="416" y1="80" x2="416" y2="110" stroke="#dc2626" stroke-width="1" marker-end="url(#ah5r)"/>
+  <text x="416" y="126" text-anchor="middle" font-size="8.5" fill="#dc2626" font-weight="600">Rejected</text>
+
+  <!-- Winner arrow down -->
+  <line x1="746" y1="80" x2="746" y2="110" stroke="#059669" stroke-width="1.2" marker-end="url(#ah5g)"/>
+  <rect x="686" y="116" width="120" height="30" rx="14" fill="#d1fae5" stroke="#059669" stroke-width="1.3"/>
+  <text x="746" y="135" text-anchor="middle" font-size="10" fill="#065f46" font-weight="700">BEST MOVE</text>
+
+  <!-- Example scoring table -->
+  <text x="410" y="170" text-anchor="middle" font-size="11" fill="#0f172a" font-weight="700">Example: Scoring 4 candidates for a 2-channel payload (w⁻=3, w⁺=1)</text>
+
+  <rect x="80" y="182" width="660" height="108" rx="6" fill="#fff" stroke="#e2e8f0" stroke-width="1"/>
+
+  <!-- Table header -->
+  <rect x="80" y="182" width="660" height="24" rx="6" fill="#0f172a"/>
+  <text x="180" y="198" text-anchor="middle" font-size="8.5" fill="#fff" font-weight="600">CANDIDATE</text>
+  <text x="340" y="198" text-anchor="middle" font-size="8.5" fill="#fff" font-weight="600">ΔEIRP CH-A</text>
+  <text x="450" y="198" text-anchor="middle" font-size="8.5" fill="#fff" font-weight="600">ΔEIRP CH-B</text>
+  <text x="560" y="198" text-anchor="middle" font-size="8.5" fill="#fff" font-weight="600">SCORE</text>
+  <text x="670" y="198" text-anchor="middle" font-size="8.5" fill="#fff" font-weight="600">RANK</text>
+
+  <!-- Row 1 -->
+  <text x="180" y="222" text-anchor="middle" font-size="8.5" fill="#334155">G3 (CH-A) −0.25</text>
+  <text x="340" y="222" text-anchor="middle" font-size="8.5" fill="#dc2626">−0.25</text>
+  <text x="450" y="222" text-anchor="middle" font-size="8.5" fill="#334155">0.00</text>
+  <text x="560" y="222" text-anchor="middle" font-size="9" fill="#0f172a" font-weight="600">0.75</text>
+  <text x="670" y="222" text-anchor="middle" font-size="9" fill="#334155">#2</text>
+
+  <!-- Row 2 -->
+  <rect x="80" y="230" width="660" height="20" fill="#f8fafc"/>
+  <text x="180" y="244" text-anchor="middle" font-size="8.5" fill="#334155">G1 (LNA) +0.5 [single]</text>
+  <text x="340" y="244" text-anchor="middle" font-size="8.5" fill="#059669">+0.50</text>
+  <text x="450" y="244" text-anchor="middle" font-size="8.5" fill="#059669">+0.50</text>
+  <text x="560" y="244" text-anchor="middle" font-size="9" fill="#0f172a" font-weight="600">1.00</text>
+  <text x="670" y="244" text-anchor="middle" font-size="9" fill="#334155">#3</text>
+
+  <!-- Row 3 -->
+  <text x="180" y="266" text-anchor="middle" font-size="8.5" fill="#334155">G1+G3s [pair]</text>
+  <text x="340" y="266" text-anchor="middle" font-size="8.5" fill="#059669">+0.25</text>
+  <text x="450" y="266" text-anchor="middle" font-size="8.5" fill="#059669">+0.25</text>
+  <text x="560" y="266" text-anchor="middle" font-size="9" fill="#059669" font-weight="700">0.50 ★</text>
+  <text x="670" y="266" text-anchor="middle" font-size="9" fill="#059669" font-weight="700">#1</text>
+
+  <!-- Row 4 -->
+  <rect x="80" y="270" width="660" height="20" fill="#f8fafc"/>
+  <text x="180" y="284" text-anchor="middle" font-size="8.5" fill="#334155">G7 (HPA) −0.5 [single]</text>
+  <text x="340" y="284" text-anchor="middle" font-size="8.5" fill="#dc2626">−0.50</text>
+  <text x="450" y="284" text-anchor="middle" font-size="8.5" fill="#dc2626">−0.50</text>
+  <text x="560" y="284" text-anchor="middle" font-size="9" fill="#0f172a" font-weight="600">3.00</text>
+  <text x="670" y="284" text-anchor="middle" font-size="9" fill="#334155">#4</text>
+</svg>
+<figcaption>Figure 5. Scoring pipeline: candidates pass through power and EIRP filters, then are scored with the asymmetric cost function and ranked. The compensating pair wins with the lowest score (0.50).</figcaption>
+</figure>
+
+<h3>7.4 Tiebreaking Rules</h3>
 
 <p>When two candidates have the same primary score (within 0.001 tolerance), the following tiebreakers apply in order:</p>
 
@@ -502,7 +1172,7 @@ Rx Antenna k                                              Tx Antenna m
   <li><strong>Fewer steps preferred</strong>: Simpler moves are preferred to reduce state-space exploration.</li>
 </ol>
 
-<h3>7.4 Strategy Modes</h3>
+<h3>7.5 Strategy Modes</h3>
 
 <table>
 <tr><th>Strategy</th><th>Behavior</th><th>Best For</th></tr>
