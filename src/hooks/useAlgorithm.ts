@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import type { AlgorithmParams, TransitionResult, PayloadConfig } from '../types';
 import { runCCGS, DEFAULT_PARAMS } from '../algorithm/ccgs';
 
@@ -8,40 +8,27 @@ export function useAlgorithm() {
   const [currentStep, setCurrentStep] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
 
-  // Track the last config used so we can auto-rerun on param changes
   const lastConfigRef = useRef<PayloadConfig | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const run = useCallback((config: PayloadConfig) => {
-    lastConfigRef.current = config;
+  const executeRun = useCallback((config: PayloadConfig, algorithmParams: AlgorithmParams) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
     setIsRunning(true);
-    setTimeout(() => {
+    debounceRef.current = setTimeout(() => {
       try {
-        const res = runCCGS(config.channels, config.gainStages, params);
+        const res = runCCGS(config.channels, config.gainStages, algorithmParams);
         setResult(res);
         setCurrentStep(res.steps.length > 0 ? res.steps.length - 1 : 0);
       } finally {
         setIsRunning(false);
       }
     }, 10);
-  }, [params]);
+  }, []);
 
-  // Auto-rerun when params change and we have a previous result
-  useEffect(() => {
-    if (result && lastConfigRef.current) {
-      const config = lastConfigRef.current;
-      setIsRunning(true);
-      const timer = setTimeout(() => {
-        try {
-          const res = runCCGS(config.channels, config.gainStages, params);
-          setResult(res);
-          setCurrentStep(res.steps.length > 0 ? res.steps.length - 1 : 0);
-        } finally {
-          setIsRunning(false);
-        }
-      }, 150); // small debounce for rapid slider/input changes
-      return () => clearTimeout(timer);
-    }
-  }, [params]); // eslint-disable-line react-hooks/exhaustive-deps
+  const run = useCallback((config: PayloadConfig) => {
+    lastConfigRef.current = config;
+    executeRun(config, params);
+  }, [params, executeRun]);
 
   const reset = useCallback(() => {
     setResult(null);
@@ -50,8 +37,15 @@ export function useAlgorithm() {
   }, []);
 
   const updateParams = useCallback((updates: Partial<AlgorithmParams>) => {
-    setParams(prev => ({ ...prev, ...updates }));
-  }, []);
+    setParams(prev => {
+      const next = { ...prev, ...updates };
+      // Auto-rerun if we have a previous config
+      if (lastConfigRef.current) {
+        executeRun(lastConfigRef.current, next);
+      }
+      return next;
+    });
+  }, [executeRun]);
 
   return {
     params,
