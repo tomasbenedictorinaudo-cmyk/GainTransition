@@ -21,6 +21,7 @@ function exportCSV(result: TransitionResult, channels: Channel[]) {
     ...gainKeys.map(k => `Gain: ${getGainStageLabel(k)}`),
     ...channels.map(c => `EIRP: ${c.name}`),
     ...channels.map(c => `EIRP Dev: ${c.name}`),
+    ...channels.map(c => `Tsys (K): ${c.name}`),
   ];
 
   const rows: string[][] = [];
@@ -33,6 +34,7 @@ function exportCSV(result: TransitionResult, channels: Channel[]) {
     ...gainKeys.map(k => result.initialGainValues[k].toFixed(4)),
     ...channelIds.map(id => result.initialEirp[id].toFixed(4)),
     ...channelIds.map(() => '0.0000'),
+    ...channelIds.map(id => (result.initialSystemTemp[id] ?? 0).toFixed(2)),
   ]);
 
   // Each transition step
@@ -51,6 +53,7 @@ function exportCSV(result: TransitionResult, channels: Channel[]) {
       ...gainKeys.map(k => step.gainValues[k].toFixed(4)),
       ...channelIds.map(id => step.channelEirp[id].toFixed(4)),
       ...channelIds.map(id => step.channelEirpDeviation[id].toFixed(4)),
+      ...channelIds.map(id => (step.systemTemp[id] ?? 0).toFixed(2)),
     ]);
   }
 

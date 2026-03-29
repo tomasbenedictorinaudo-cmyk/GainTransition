@@ -8,16 +8,21 @@ export interface GainStageDefaults {
   stepGranularity: number;
   upperThreshold: number;
   lowerThreshold: number;
+  noiseFigure: number;
 }
 
 const DEFAULTS: Record<string, GainStageDefaults> = {
-  G1: { currentValue: 30, targetValue: 30, stepGranularity: 0.5, upperThreshold: -10, lowerThreshold: -40 },
-  G2: { currentValue: 10, targetValue: 10, stepGranularity: 0.25, upperThreshold: 0, lowerThreshold: -35 },
-  G3: { currentValue: 5, targetValue: 5, stepGranularity: 0.25, upperThreshold: 10, lowerThreshold: -30 },
-  G4: { currentValue: 5, targetValue: 5, stepGranularity: 0.25, upperThreshold: 10, lowerThreshold: -25 },
-  G5: { currentValue: 10, targetValue: 10, stepGranularity: 0.25, upperThreshold: 20, lowerThreshold: -15 },
-  G6: { currentValue: 10, targetValue: 10, stepGranularity: 0.25, upperThreshold: 30, lowerThreshold: -5 },
-  G7: { currentValue: 40, targetValue: 40, stepGranularity: 0.5, upperThreshold: 75, lowerThreshold: 30 },
+  // G1 (LNA): low noise figure, high gain — dominates system temp
+  G1: { currentValue: 30, targetValue: 30, stepGranularity: 0.5, upperThreshold: -10, lowerThreshold: -40, noiseFigure: 1.5 },
+  // G2 (DEMUX digital): moderate noise figure
+  G2: { currentValue: 10, targetValue: 10, stepGranularity: 0.25, upperThreshold: 0, lowerThreshold: -35, noiseFigure: 3.0 },
+  // G3 (per-channel digital): moderate noise figure
+  G3: { currentValue: 5, targetValue: 5, stepGranularity: 0.25, upperThreshold: 10, lowerThreshold: -30, noiseFigure: 3.0 },
+  // G4-G7: transmit side — noise figures included for completeness but don't affect Tsys
+  G4: { currentValue: 5, targetValue: 5, stepGranularity: 0.25, upperThreshold: 10, lowerThreshold: -25, noiseFigure: 3.0 },
+  G5: { currentValue: 10, targetValue: 10, stepGranularity: 0.25, upperThreshold: 20, lowerThreshold: -15, noiseFigure: 3.0 },
+  G6: { currentValue: 10, targetValue: 10, stepGranularity: 0.25, upperThreshold: 30, lowerThreshold: -5, noiseFigure: 3.0 },
+  G7: { currentValue: 40, targetValue: 40, stepGranularity: 0.5, upperThreshold: 75, lowerThreshold: 30, noiseFigure: 6.0 },
 };
 
 function makeStage(id: GainStageId, overrides?: Partial<GainStageDefaults>): GainStage {
@@ -30,6 +35,7 @@ function makeStage(id: GainStageId, overrides?: Partial<GainStageDefaults>): Gai
     stepGranularity: overrides?.stepGranularity ?? d.stepGranularity,
     upperThreshold: overrides?.upperThreshold ?? d.upperThreshold,
     lowerThreshold: overrides?.lowerThreshold ?? d.lowerThreshold,
+    noiseFigure: overrides?.noiseFigure ?? d.noiseFigure,
   };
 }
 
@@ -46,7 +52,6 @@ export function createGainStages(
   const addIfNew = (id: GainStageId) => {
     const key = serializeGainStageId(id);
     if (!stages.has(key)) {
-      // Preserve existing values if available
       if (existing?.has(key)) {
         stages.set(key, existing.get(key)!);
       } else {
@@ -56,24 +61,18 @@ export function createGainStages(
   };
 
   for (const ch of channels) {
-    // Rx chain
     addIfNew({ type: 'G1', rxAntennaId: ch.rxAntennaId });
-
     const rxSubs = getSubchannelIndices(ch.rxLowFreqMHz, ch.bandwidthMHz);
     for (const sub of rxSubs) {
       addIfNew({ type: 'G2', rxAntennaId: ch.rxAntennaId, subchannelIndex: sub });
     }
-
     addIfNew({ type: 'G3', channelId: ch.id });
     addIfNew({ type: 'G4', channelId: ch.id });
     addIfNew({ type: 'G5', channelId: ch.id });
-
-    // Tx chain
     const txSubs = getSubchannelIndices(ch.txLowFreqMHz, ch.bandwidthMHz);
     for (const sub of txSubs) {
       addIfNew({ type: 'G6', txAntennaId: ch.txAntennaId, subchannelIndex: sub });
     }
-
     addIfNew({ type: 'G7', txAntennaId: ch.txAntennaId });
   }
 

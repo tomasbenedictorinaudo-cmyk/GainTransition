@@ -10,6 +10,7 @@ import { TransitionSummary } from './components/simulation/TransitionSummary';
 import { EirpChart } from './components/charts/EirpChart';
 import { GainChart } from './components/charts/GainChart';
 import { PowerLevelChart } from './components/charts/PowerLevelChart';
+import { SystemTempChart } from './components/charts/SystemTempChart';
 import { ChannelDetailPanel } from './components/charts/ChannelDetailPanel';
 
 type ConfigTab = 'payload' | 'gains' | 'algorithm';
@@ -190,6 +191,11 @@ function App() {
               <PowerLevelChart
                 result={result}
                 gainStages={config.gainStages}
+                currentStep={currentStep}
+              />
+              <SystemTempChart
+                result={result}
+                channels={config.channels}
                 currentStep={currentStep}
               />
             </div>

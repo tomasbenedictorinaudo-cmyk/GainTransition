@@ -10,6 +10,7 @@ import type {
 import { buildCouplingMap } from '../core/coupling';
 import { computeAllChannelEirp } from '../core/eirp';
 import { computeAllPowerLevels } from '../core/power';
+import { computeAllSystemTemp } from '../core/system-temp';
 import { generateCandidateMoves } from './candidates';
 import { checkFeasibility } from './feasibility';
 import { scoreCandidate, compareCandidates } from './scoring';
@@ -44,6 +45,7 @@ function runStandard(
 ): TransitionResult {
   const { gainValues, targetValues, granularities } = initState(gainStages);
   const initialEirp = computeAllChannelEirp(channels, gainValues);
+  const initialSystemTemp = computeAllSystemTemp(channels, gainValues, gainStages);
   const initialGainValues = { ...gainValues };
   const hasEirpLimits = params.maxNegativeEirpDeviation !== null || params.maxPositiveEirpDeviation !== null;
 
@@ -74,7 +76,7 @@ function runStandard(
       if (eirpFiltered.length === 0) {
         // EIRP limits infeasible — return error
         return buildError(
-          steps, initialEirp, initialGainValues, gainValues, targetValues,
+          steps, initialEirp, initialSystemTemp, initialGainValues, gainValues, targetValues,
           granularities, channels, maxNegDev, maxPosDev, violations,
           buildEirpErrorMessage(feasible, gainValues, channels, initialEirp, params)
         );
@@ -92,7 +94,7 @@ function runStandard(
     maxPosDev = devs.pos;
   }
 
-  return buildResult(steps, initialEirp, initialGainValues, gainValues, targetValues, granularities, channels, maxNegDev, maxPosDev, violations);
+  return buildResult(steps, initialEirp, initialSystemTemp, initialGainValues, gainValues, targetValues, granularities, channels, maxNegDev, maxPosDev, violations);
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -107,6 +109,7 @@ function runG4Compensated(
   const { gainValues, targetValues, granularities } = initState(gainStages);
   const couplingMap = buildCouplingMap(channels);
   const initialEirp = computeAllChannelEirp(channels, gainValues);
+  const initialSystemTemp = computeAllSystemTemp(channels, gainValues, gainStages);
   const initialGainValues = { ...gainValues };
   const hasEirpLimits = params.maxNegativeEirpDeviation !== null || params.maxPositiveEirpDeviation !== null;
 
@@ -143,7 +146,7 @@ function runG4Compensated(
       );
       if (eirpFiltered.length === 0) {
         return buildError(
-          steps, initialEirp, initialGainValues, gainValues, targetValues,
+          steps, initialEirp, initialSystemTemp, initialGainValues, gainValues, targetValues,
           granularities, channels, maxNegDev, maxPosDev, violations,
           buildEirpErrorMessageWithG4(feasible, gainValues, channels, initialEirp, params, granularities, gainStages)
         );
@@ -205,7 +208,7 @@ function runG4Compensated(
       const eirpFiltered = filterByEirpLimits(feasible, gainValues, channels, initialEirp, params);
       if (eirpFiltered.length === 0) {
         return buildError(
-          steps, initialEirp, initialGainValues, gainValues, targetValues,
+          steps, initialEirp, initialSystemTemp, initialGainValues, gainValues, targetValues,
           granularities, channels, maxNegDev, maxPosDev, violations,
           buildEirpErrorMessage(feasible, gainValues, channels, initialEirp, params)
         );
@@ -222,7 +225,7 @@ function runG4Compensated(
     maxPosDev = devs.pos;
   }
 
-  return buildResult(steps, initialEirp, initialGainValues, gainValues, targetValues, granularities, channels, maxNegDev, maxPosDev, violations);
+  return buildResult(steps, initialEirp, initialSystemTemp, initialGainValues, gainValues, targetValues, granularities, channels, maxNegDev, maxPosDev, violations);
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -608,6 +611,7 @@ function recordStep(
     deviations[ch.id] = eirp[ch.id] - initialEirp[ch.id];
   }
   const powerLevels = computeAllPowerLevels(channels, gainValues);
+  const systemTemp = computeAllSystemTemp(channels, gainValues, gainStages);
   return {
     stepIndex: index,
     appliedMove: move,
@@ -615,6 +619,7 @@ function recordStep(
     channelEirp: eirp,
     channelEirpDeviation: deviations,
     powerLevels,
+    systemTemp,
     cost: 0,
   };
 }
@@ -632,6 +637,7 @@ function trackDeviation(step: TransitionStep, maxNeg: number, maxPos: number) {
 function buildResult(
   steps: TransitionStep[],
   initialEirp: Record<string, number>,
+  initialSystemTemp: Record<string, number>,
   initialGainValues: Record<string, number>,
   gainValues: Record<string, number>,
   targetValues: Record<string, number>,
@@ -647,6 +653,7 @@ function buildResult(
     finalEirp: computeAllChannelEirp(channels, gainValues),
     initialGainValues,
     targetGainValues: { ...targetValues },
+    initialSystemTemp,
     maxNegativeDeviation: maxNegDev,
     maxPositiveDeviation: maxPosDev,
     totalSteps: steps.length,
@@ -659,6 +666,7 @@ function buildResult(
 function buildError(
   steps: TransitionStep[],
   initialEirp: Record<string, number>,
+  initialSystemTemp: Record<string, number>,
   initialGainValues: Record<string, number>,
   gainValues: Record<string, number>,
   targetValues: Record<string, number>,
@@ -675,6 +683,7 @@ function buildError(
     finalEirp: computeAllChannelEirp(channels, gainValues),
     initialGainValues,
     targetGainValues: { ...targetValues },
+    initialSystemTemp,
     maxNegativeDeviation: maxNegDev,
     maxPositiveDeviation: maxPosDev,
     totalSteps: steps.length,

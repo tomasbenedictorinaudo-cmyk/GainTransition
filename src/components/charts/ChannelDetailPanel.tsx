@@ -54,6 +54,17 @@ export function ChannelDetailPanel({ result, channel, gainStages, currentStep, o
     ];
   }, [result, chainKeys]);
 
+  // System temperature data for this channel
+  const tempData = useMemo(() => {
+    return [
+      { step: 0, temp: result.initialSystemTemp[channel.id] ?? 0 },
+      ...result.steps.map((s, i) => ({
+        step: i + 1,
+        temp: Math.round((s.systemTemp[channel.id] ?? 0) * 10) / 10,
+      })),
+    ];
+  }, [result, channel.id]);
+
   // Steps that affect this channel (any step in the move touches a gain in this channel's chain)
   const affectedSteps = useMemo(() => {
     const chainSet = new Set(chainKeys);
@@ -90,7 +101,7 @@ export function ChannelDetailPanel({ result, channel, gainStages, currentStep, o
 
       {/* Current step snapshot */}
       {snapshot && (
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <div className="bg-slate-900/50 rounded p-2">
             <span className="text-[10px] text-slate-500 block">EIRP at Step {currentStep + 1}</span>
             <span className="text-sm font-mono text-slate-200">
@@ -98,7 +109,7 @@ export function ChannelDetailPanel({ result, channel, gainStages, currentStep, o
             </span>
           </div>
           <div className="bg-slate-900/50 rounded p-2">
-            <span className="text-[10px] text-slate-500 block">Deviation from Initial</span>
+            <span className="text-[10px] text-slate-500 block">EIRP Deviation</span>
             <span className={`text-sm font-mono ${
               (snapshot.channelEirpDeviation[channel.id] ?? 0) < -0.01
                 ? 'text-red-400'
@@ -108,6 +119,15 @@ export function ChannelDetailPanel({ result, channel, gainStages, currentStep, o
             }`}>
               {(snapshot.channelEirpDeviation[channel.id] ?? 0) > 0 ? '+' : ''}
               {snapshot.channelEirpDeviation[channel.id]?.toFixed(3)} dB
+            </span>
+          </div>
+          <div className="bg-slate-900/50 rounded p-2">
+            <span className="text-[10px] text-slate-500 block">System Temp</span>
+            <span className="text-sm font-mono text-orange-300">
+              {(snapshot.systemTemp[channel.id] ?? 0).toFixed(1)} K
+            </span>
+            <span className="text-[9px] text-slate-600 block">
+              init: {(result.initialSystemTemp[channel.id] ?? 0).toFixed(1)} K
             </span>
           </div>
         </div>
@@ -189,6 +209,27 @@ export function ChannelDetailPanel({ result, channel, gainStages, currentStep, o
                 strokeWidth={1.5}
               />
             ))}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* System temperature evolution */}
+      <div>
+        <h4 className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+          System Noise Temperature (K)
+        </h4>
+        <ResponsiveContainer width="100%" height={180}>
+          <LineChart data={tempData} margin={{ top: 5, right: 20, bottom: 5, left: 10 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+            <XAxis dataKey="step" stroke="#64748b" tick={{ fontSize: 10 }} />
+            <YAxis stroke="#64748b" tick={{ fontSize: 10 }} />
+            <Tooltip
+              contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: 8, fontSize: 11 }}
+              labelStyle={{ color: '#94a3b8' }}
+              formatter={(value: number) => [`${value.toFixed(1)} K`, 'Tsys']}
+            />
+            <ReferenceLine x={currentStep + 1} stroke="#3b82f6" strokeDasharray="3 3" strokeWidth={2} />
+            <Line type="stepAfter" dataKey="temp" stroke="#fb923c" dot={false} strokeWidth={2} />
           </LineChart>
         </ResponsiveContainer>
       </div>

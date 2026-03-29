@@ -16,6 +16,7 @@ export interface GainStage {
   stepGranularity: number; // dB
   upperThreshold: number; // dBm (power level)
   lowerThreshold: number; // dBm (power level)
+  noiseFigure: number; // dB — noise figure of this gain stage
 }
 
 export interface Channel {
@@ -28,6 +29,7 @@ export interface Channel {
   txLowFreqMHz: number;
   ipfd: number; // dBm/m²
   eirpTarget: number; // dBm
+  antennaNoiseTemp: number; // K — receive antenna noise temperature
 }
 
 export interface PayloadConfig {

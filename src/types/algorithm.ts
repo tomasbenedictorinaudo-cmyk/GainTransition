@@ -23,6 +23,7 @@ export interface TransitionStep {
   channelEirp: Record<string, number>;
   channelEirpDeviation: Record<string, number>;
   powerLevels: Record<string, number>;
+  systemTemp: Record<string, number>; // system noise temperature per channel (K)
   cost: number;
 }
 
@@ -32,10 +33,11 @@ export interface TransitionResult {
   finalEirp: Record<string, number>;
   initialGainValues: Record<string, number>;
   targetGainValues: Record<string, number>;
+  initialSystemTemp: Record<string, number>; // initial system temp per channel (K)
   maxNegativeDeviation: number;
   maxPositiveDeviation: number;
   totalSteps: number;
   thresholdViolations: number;
   converged: boolean;
-  error: string | null; // non-null when EIRP limits are infeasible
+  error: string | null;
 }

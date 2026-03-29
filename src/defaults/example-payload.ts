@@ -32,6 +32,7 @@ const exampleChannels: Channel[] = [
     txLowFreqMHz: 11700,
     ipfd: -120,
     eirpTarget: 45,
+    antennaNoiseTemp: 200,
   },
   {
     id: '2',
@@ -43,6 +44,7 @@ const exampleChannels: Channel[] = [
     txLowFreqMHz: 11710,
     ipfd: -118,
     eirpTarget: 47,
+    antennaNoiseTemp: 200,
   },
   {
     id: '3',
@@ -54,6 +56,7 @@ const exampleChannels: Channel[] = [
     txLowFreqMHz: 11705,
     ipfd: -122,
     eirpTarget: 44,
+    antennaNoiseTemp: 220,
   },
   {
     id: '4',
@@ -65,6 +68,7 @@ const exampleChannels: Channel[] = [
     txLowFreqMHz: 11715,
     ipfd: -119,
     eirpTarget: 46,
+    antennaNoiseTemp: 220,
   },
   {
     id: '5',
@@ -76,6 +80,7 @@ const exampleChannels: Channel[] = [
     txLowFreqMHz: 11720,
     ipfd: -121,
     eirpTarget: 44,
+    antennaNoiseTemp: 180,
   },
   {
     id: '6',
@@ -87,6 +92,7 @@ const exampleChannels: Channel[] = [
     txLowFreqMHz: 11725,
     ipfd: -117,
     eirpTarget: 48,
+    antennaNoiseTemp: 180,
   },
 ];
 
