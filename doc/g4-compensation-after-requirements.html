@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>G4-Compensated (After) Algorithm &mdash; Requirements &amp; Specification</title>
+<style>
+  :root {
+    --bg: #fdfdfe; --fg: #1a1a2e; --accent: #2563eb; --accent2: #7c3aed;
+    --border: #e2e8f0; --code-bg: #f1f5f9; --warn: #d97706; --err: #dc2626;
+    --ok: #059669; --header-bg: #0f172a; --caption: #64748b; --table-alt: #f8fafc;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font: 16px/1.72 'Inter', 'Segoe UI', system-ui, sans-serif; color: var(--fg); background: var(--bg); max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem 6rem; }
+  h1 { font-size: 2rem; font-weight: 700; margin: 0 0 0.25rem; color: var(--header-bg); }
+  h2 { font-size: 1.45rem; font-weight: 700; margin: 3rem 0 1rem; padding-bottom: 0.4rem; border-bottom: 2px solid var(--accent); color: var(--header-bg); }
+  h3 { font-size: 1.15rem; font-weight: 600; margin: 2rem 0 0.75rem; color: var(--accent2); }
+  h4 { font-size: 1rem; font-weight: 600; margin: 1.5rem 0 0.5rem; }
+  p, li { margin-bottom: 0.6rem; }
+  ul, ol { padding-left: 1.5rem; }
+  a { color: var(--accent); }
+  code { font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace; font-size: 0.88em; background: var(--code-bg); padding: 0.15em 0.4em; border-radius: 4px; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem; overflow-x: auto; margin: 1rem 0; font-size: 0.85rem; line-height: 1.55; }
+  pre code { background: none; padding: 0; }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.92rem; }
+  th, td { text-align: left; padding: 0.55rem 0.75rem; border: 1px solid var(--border); }
+  th { background: var(--header-bg); color: #fff; font-weight: 600; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  tr:nth-child(even) td { background: var(--table-alt); }
+  .subtitle { color: var(--caption); font-size: 0.95rem; margin-bottom: 2rem; }
+  .toc { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem 1.5rem; margin: 2rem 0; }
+  .toc h3 { margin-top: 0; color: var(--header-bg); }
+  .toc ol { margin-bottom: 0; }
+  .toc li { margin-bottom: 0.3rem; font-size: 0.93rem; }
+  .note, .warn, .def, .req {
+    border-left: 4px solid; padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0 6px 6px 0; font-size: 0.93rem;
+  }
+  .note { border-color: var(--accent); background: #eff6ff; }
+  .warn { border-color: var(--warn); background: #fffbeb; }
+  .def { border-color: var(--accent2); background: #f5f3ff; }
+  .req { border-color: var(--ok); background: #ecfdf5; }
+  .eq { display: block; font-family: 'JetBrains Mono', monospace; background: var(--code-bg); border: 1px solid var(--border); padding: 0.5rem 1rem; border-radius: 6px; margin: 0.75rem 0; font-size: 0.92rem; overflow-x: auto; }
+  .req-id { font-weight: 700; color: var(--ok); margin-right: 0.5rem; }
+  .svg-diagram { display: block; margin: 1.5rem auto; max-width: 100%; }
+  .phase-label { display: inline-block; background: var(--accent); color: #fff; padding: 0.15rem 0.6rem; border-radius: 4px; font-size: 0.85rem; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<h1>G4-Compensated (After) Algorithm</h1>
+<p class="subtitle">Requirements Specification &amp; Pseudocode &mdash; For Independent Implementation</p>
+
+<div class="toc">
+  <h3>Table of Contents</h3>
+  <ol>
+    <li><a href="#s1">Purpose &amp; Scope</a></li>
+    <li><a href="#s2">System Context</a></li>
+    <li><a href="#s3">Data Model</a></li>
+    <li><a href="#s4">Algorithm Overview</a></li>
+    <li><a href="#s5">Phase 1: Non-G4 Stepping with G4 Compensation</a></li>
+    <li><a href="#s6">Phase 2: G4 Stepping to Final Targets</a></li>
+    <li><a href="#s7">Candidate Generation</a></li>
+    <li><a href="#s8">Power Feasibility Check</a></li>
+    <li><a href="#s9">EIRP Computation</a></li>
+    <li><a href="#s10">EIRP Deviation Filtering (with Intermediate State Check)</a></li>
+    <li><a href="#s11">G4 Correction Computation</a></li>
+    <li><a href="#s12">Scoring &amp; Selection</a></li>
+    <li><a href="#s13">Power Level Cascade</a></li>
+    <li><a href="#s14">System Noise Temperature</a></li>
+    <li><a href="#s15">Deadlock Resolution</a></li>
+    <li><a href="#s16">Termination &amp; Output</a></li>
+    <li><a href="#s17">Traceability Matrix</a></li>
+  </ol>
+</div>
+
+<!-- ================================================================ -->
+<h2 id="s1">1. Purpose &amp; Scope</h2>
+
+<p>This document specifies the <strong>G4-Compensated (After)</strong> algorithm for transitioning a satellite payload from one gain configuration to another. The algorithm uses gain stage G4 (a per-channel digital gain on the transmit side) as a real-time compensation lever: after each primary gain step, it adjusts G4 on all affected channels to bring the EIRP back toward the initial operating point.</p>
+
+<p><strong>Scope:</strong> This document covers only the <code>g4-compensated</code> strategy with <code>mode = "after"</code>. It is self-contained: an external team should be able to implement the complete algorithm from this document alone, with no access to other source code.</p>
+
+<div class="note">
+  <strong>Why G4?</strong> G4 is a per-channel digital gain stage. It can be independently adjusted for each channel without affecting any other channel. This makes it ideal as a compensation lever: when a shared gain (e.g., G1 on an Rx antenna) changes and shifts the EIRP of multiple channels, G4 can independently correct each affected channel.
+</div>
+
+<!-- ================================================================ -->
+<h2 id="s2">2. System Context</h2>
+
+<h3>2.1 Payload Signal Chain</h3>
+
+<p>Each channel passes through 7 gain stages in series:</p>
+
+<table>
+  <tr><th>Stage</th><th>Name</th><th>Scope</th><th>Type</th><th>Key Format</th></tr>
+  <tr><td>G1</td><td>LNA</td><td>One per Rx antenna</td><td>Analog</td><td><code>G1:rx{antennaId}</code></td></tr>
+  <tr><td>G2</td><td>DEMUX</td><td>One per Rx 5&nbsp;MHz subchannel</td><td>Digital</td><td><code>G2:rx{antennaId}:sub{index}</code></td></tr>
+  <tr><td>G3</td><td>Per-channel Rx</td><td>One per channel</td><td>Digital</td><td><code>G3:ch{channelId}</code></td></tr>
+  <tr><td>G4</td><td>Per-channel Tx (compensation)</td><td>One per channel</td><td>Digital</td><td><code>G4:ch{channelId}</code></td></tr>
+  <tr><td>G5</td><td>Per-channel Tx</td><td>One per channel</td><td>Digital</td><td><code>G5:ch{channelId}</code></td></tr>
+  <tr><td>G6</td><td>MUX</td><td>One per Tx 5&nbsp;MHz subchannel</td><td>Digital</td><td><code>G6:tx{antennaId}:sub{index}</code></td></tr>
+  <tr><td>G7</td><td>HPA</td><td>One per Tx antenna</td><td>Analog</td><td><code>G7:tx{antennaId}</code></td></tr>
+</table>
+
+<h3>2.2 Stage Classification</h3>
+
+<table>
+  <tr><th>Category</th><th>Stages</th><th>Move Rule</th></tr>
+  <tr><td>Analog</td><td>G1, G7</td><td>One antenna per iteration. Only one gain instance changes.</td></tr>
+  <tr><td>Digital (shared)</td><td>G2, G6</td><td>All instances of the stage type move together in one iteration.</td></tr>
+  <tr><td>Digital (per-channel)</td><td>G3, G4, G5</td><td>All instances of the stage type move together in one iteration.</td></tr>
+</table>
+
+<h3>2.3 Channel Gain Chain</h3>
+
+<p>For a channel <em>c</em> with Rx antenna <em>r</em>, Tx antenna <em>t</em>, Rx primary subchannel <em>s<sub>rx</sub></em>, and Tx primary subchannel <em>s<sub>tx</sub></em>, the ordered gain chain is:</p>
+
+<span class="eq">[G1:rx<em>r</em>, &nbsp; G2:rx<em>r</em>:sub<em>s<sub>rx</sub></em>, &nbsp; G3:ch<em>c</em>, &nbsp; G4:ch<em>c</em>, &nbsp; G5:ch<em>c</em>, &nbsp; G6:tx<em>t</em>:sub<em>s<sub>tx</sub></em>, &nbsp; G7:tx<em>t</em>]</span>
+
+<p>The primary subchannel index is computed as: <code>subchannelIndex = floor(lowFreqMHz / 5)</code></p>
+
+<!-- ================================================================ -->
+<h2 id="s3">3. Data Model</h2>
+
+<h3>3.1 Inputs</h3>
+
+<table>
+  <tr><th>Input</th><th>Type</th><th>Description</th></tr>
+  <tr><td><code>channels</code></td><td>Array of Channel</td><td>Channel definitions (Rx/Tx antenna IDs, frequencies, bandwidth, IPFD, EIRP target, antenna noise temperature)</td></tr>
+  <tr><td><code>gainStages</code></td><td>Map&lt;string, GainStage&gt;</td><td>All gain stage instances keyed by serialized ID</td></tr>
+  <tr><td><code>params</code></td><td>AlgorithmParams</td><td>Algorithm configuration</td></tr>
+</table>
+
+<h3>3.2 GainStage Properties</h3>
+
+<table>
+  <tr><th>Property</th><th>Type</th><th>Unit</th><th>Description</th></tr>
+  <tr><td><code>currentValue</code></td><td>number</td><td>dB</td><td>Starting gain value</td></tr>
+  <tr><td><code>targetValue</code></td><td>number</td><td>dB</td><td>Desired final gain value</td></tr>
+  <tr><td><code>stepGranularity</code></td><td>number</td><td>dB</td><td>Minimum discrete adjustment step</td></tr>
+  <tr><td><code>upperThreshold</code></td><td>number</td><td>dBm</td><td>Maximum allowable output power</td></tr>
+  <tr><td><code>lowerThreshold</code></td><td>number</td><td>dBm</td><td>Minimum allowable output power</td></tr>
+  <tr><td><code>noiseFigure</code></td><td>number</td><td>dB</td><td>Stage noise figure (used for system temperature calculation)</td></tr>
+</table>
+
+<h3>3.3 Algorithm Parameters</h3>
+
+<table>
+  <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+  <tr><td><code>maxNegativeEirpDeviation</code></td><td>number | null</td><td>null</td><td>Max allowed EIRP drop from initial (dB). Null = unconstrained.</td></tr>
+  <tr><td><code>maxPositiveEirpDeviation</code></td><td>number | null</td><td>null</td><td>Max allowed EIRP rise from initial (dB). Null = unconstrained.</td></tr>
+  <tr><td><code>maxIterations</code></td><td>number</td><td>5000</td><td>Safety limit on total iterations across both phases.</td></tr>
+</table>
+
+<h3>3.4 Output: TransitionResult</h3>
+
+<table>
+  <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+  <tr><td><code>steps</code></td><td>Array of TransitionStep</td><td>Complete ordered sequence of gain changes</td></tr>
+  <tr><td><code>initialEirp</code></td><td>Record&lt;channelId, dBm&gt;</td><td>EIRP per channel before any changes</td></tr>
+  <tr><td><code>finalEirp</code></td><td>Record&lt;channelId, dBm&gt;</td><td>EIRP per channel after all changes</td></tr>
+  <tr><td><code>initialGainValues</code></td><td>Record&lt;stageKey, dB&gt;</td><td>Starting gain configuration</td></tr>
+  <tr><td><code>targetGainValues</code></td><td>Record&lt;stageKey, dB&gt;</td><td>Target gain configuration</td></tr>
+  <tr><td><code>initialSystemTemp</code></td><td>Record&lt;channelId, K&gt;</td><td>System noise temperature per channel at initial state</td></tr>
+  <tr><td><code>maxNegativeDeviation</code></td><td>number</td><td>Worst negative EIRP deviation observed across all steps and channels (dB, &le; 0)</td></tr>
+  <tr><td><code>maxPositiveDeviation</code></td><td>number</td><td>Worst positive EIRP deviation observed (dB, &ge; 0)</td></tr>
+  <tr><td><code>totalSteps</code></td><td>number</td><td>Total number of transition steps</td></tr>
+  <tr><td><code>thresholdViolations</code></td><td>number</td><td>Number of steps where power thresholds were relaxed</td></tr>
+  <tr><td><code>converged</code></td><td>boolean</td><td>True if all gains reached their targets</td></tr>
+  <tr><td><code>error</code></td><td>string | null</td><td>Error message if EIRP limits are infeasible</td></tr>
+</table>
+
+<h3>3.5 TransitionStep Record</h3>
+
+<p>Each step records a complete snapshot of the system state after the move is applied:</p>
+
+<table>
+  <tr><th>Field</th><th>Description</th></tr>
+  <tr><td><code>stepIndex</code></td><td>Sequential index (0-based)</td></tr>
+  <tr><td><code>appliedMove</code></td><td>The move applied: <code>{ steps: [{gainStageKey, delta}], stageType }</code></td></tr>
+  <tr><td><code>gainValues</code></td><td>Snapshot of all gain values after this step (dB)</td></tr>
+  <tr><td><code>channelEirp</code></td><td>EIRP per channel after this step (dBm)</td></tr>
+  <tr><td><code>channelEirpDeviation</code></td><td>EIRP deviation from initial per channel (dB)</td></tr>
+  <tr><td><code>powerLevels</code></td><td>Power at each gain stage output after this step (dBm)</td></tr>
+  <tr><td><code>systemTemp</code></td><td>System noise temperature per channel (K)</td></tr>
+</table>
+
+<!-- ================================================================ -->
+<h2 id="s4">4. Algorithm Overview</h2>
+
+<div class="req">
+  <span class="req-id">REQ-001</span>
+  The algorithm SHALL operate in two sequential phases: Phase 1 (non-G4 gains with G4 compensation) followed by Phase 2 (G4 gains to final targets).
+</div>
+
+<div class="req">
+  <span class="req-id">REQ-002</span>
+  In Phase 1, after each primary gain step, the algorithm SHALL insert a separate G4 correction step that adjusts G4 on all affected channels to minimize cumulative EIRP deviation from the initial state.
+</div>
+
+<div class="req">
+  <span class="req-id">REQ-003</span>
+  In Phase 2, G4 gains SHALL be stepped to their final target values. This phase accepts that EIRP deviation will occur as the compensation cushion is removed.
+</div>
+
+<div class="req">
+  <span class="req-id">REQ-004</span>
+  Each iteration (in either phase) SHALL change only one gain stage TYPE (e.g., all G3 instances, or one G1 antenna).
+</div>
+
+<div class="req">
+  <span class="req-id">REQ-005</span>
+  For analog stages (G1, G7), each iteration SHALL change the gain of exactly one antenna.
+</div>
+
+<div class="req">
+  <span class="req-id">REQ-006</span>
+  For digital stages (G2, G3, G4, G5, G6), each iteration SHALL move all instances of that stage type together.
+</div>
+
+<div class="req">
+  <span class="req-id">REQ-007</span>
+  A gain stage MAY be changed by more than one granularity step in a single iteration (1&middot;&gamma;, 2&middot;&gamma;, &hellip;, n&middot;&gamma; where n&middot;&gamma; &le; remaining delta).
+</div>
+
+<!-- Phase diagram -->
+<svg class="svg-diagram" viewBox="0 0 860 520" xmlns="http://www.w3.org/2000/svg" font-family="Inter, system-ui, sans-serif">
+  <!-- Background -->
+  <rect width="860" height="520" fill="#f8fafc" rx="12"/>
+
+  <!-- Title -->
+  <text x="430" y="35" text-anchor="middle" font-size="16" font-weight="700" fill="#0f172a">G4-Compensated (After) &mdash; Two-Phase Flow</text>
+
+  <!-- Phase 1 box -->
+  <rect x="30" y="60" width="380" height="430" rx="10" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="220" y="88" text-anchor="middle" font-size="13" font-weight="700" fill="#2563eb">PHASE 1: Non-G4 Gains + G4 Compensation</text>
+
+  <!-- Phase 1 steps -->
+  <rect x="55" y="105" width="330" height="32" rx="6" fill="#2563eb" opacity="0.9"/>
+  <text x="220" y="126" text-anchor="middle" font-size="11" fill="#fff" font-weight="600">Generate non-G4 candidates (exclude G4)</text>
+
+  <line x1="220" y1="137" x2="220" y2="150" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <rect x="55" y="150" width="330" height="32" rx="6" fill="#3b82f6"/>
+  <text x="220" y="171" text-anchor="middle" font-size="11" fill="#fff" font-weight="600">Filter: power thresholds</text>
+
+  <line x1="220" y1="182" x2="220" y2="195" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <rect x="55" y="195" width="330" height="32" rx="6" fill="#3b82f6"/>
+  <text x="220" y="216" text-anchor="middle" font-size="11" fill="#fff" font-weight="600">Filter: EIRP limits (check BOTH intermediate states)</text>
+
+  <line x1="220" y1="227" x2="220" y2="240" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <rect x="55" y="240" width="330" height="32" rx="6" fill="#7c3aed"/>
+  <text x="220" y="261" text-anchor="middle" font-size="11" fill="#fff" font-weight="600">Score &amp; pick best (max progress)</text>
+
+  <line x1="220" y1="272" x2="220" y2="285" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <rect x="55" y="285" width="330" height="32" rx="6" fill="#059669"/>
+  <text x="220" y="306" text-anchor="middle" font-size="11" fill="#fff" font-weight="600">Apply primary move &rarr; record step</text>
+
+  <line x1="220" y1="317" x2="220" y2="330" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <rect x="55" y="330" width="330" height="32" rx="6" fill="#d97706"/>
+  <text x="220" y="351" text-anchor="middle" font-size="11" fill="#fff" font-weight="600">Compute G4 correction from EIRP deviation</text>
+
+  <line x1="220" y1="362" x2="220" y2="375" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <rect x="55" y="375" width="330" height="32" rx="6" fill="#d97706"/>
+  <text x="220" y="396" text-anchor="middle" font-size="11" fill="#fff" font-weight="600">Apply G4 correction &rarr; record step</text>
+
+  <!-- Loop arrow -->
+  <line x1="220" y1="407" x2="220" y2="425" stroke="#64748b" stroke-width="1.5"/>
+  <rect x="110" y="425" width="220" height="28" rx="6" fill="#e2e8f0" stroke="#94a3b8"/>
+  <text x="220" y="444" text-anchor="middle" font-size="10" fill="#475569" font-weight="600">Non-G4 gains at target? &rarr; No: loop</text>
+
+  <path d="M 110 439 L 50 439 L 50 121 L 55 121" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"/>
+
+  <!-- Arrow to Phase 2 -->
+  <line x1="330" y1="439" x2="450" y2="439" stroke="#0f172a" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="390" y="432" text-anchor="middle" font-size="9" fill="#059669" font-weight="600">Yes</text>
+
+  <!-- Phase 2 box -->
+  <rect x="450" y="60" width="380" height="430" rx="10" fill="#ecfdf5" stroke="#059669" stroke-width="1.5"/>
+  <text x="640" y="88" text-anchor="middle" font-size="13" font-weight="700" fill="#059669">PHASE 2: G4 to Final Targets</text>
+
+  <rect x="475" y="115" width="330" height="32" rx="6" fill="#059669"/>
+  <text x="640" y="136" text-anchor="middle" font-size="11" fill="#fff" font-weight="600">Generate G4-only candidates</text>
+
+  <line x1="640" y1="147" x2="640" y2="160" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <rect x="475" y="160" width="330" height="32" rx="6" fill="#10b981"/>
+  <text x="640" y="181" text-anchor="middle" font-size="11" fill="#fff" font-weight="600">Filter: power thresholds</text>
+
+  <line x1="640" y1="192" x2="640" y2="205" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <rect x="475" y="205" width="330" height="32" rx="6" fill="#10b981"/>
+  <text x="640" y="226" text-anchor="middle" font-size="11" fill="#fff" font-weight="600">Filter: EIRP limits (standard single-state)</text>
+
+  <line x1="640" y1="237" x2="640" y2="250" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <rect x="475" y="250" width="330" height="32" rx="6" fill="#7c3aed"/>
+  <text x="640" y="271" text-anchor="middle" font-size="11" fill="#fff" font-weight="600">Score &amp; pick best (max progress)</text>
+
+  <line x1="640" y1="282" x2="640" y2="295" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <rect x="475" y="295" width="330" height="32" rx="6" fill="#059669"/>
+  <text x="640" y="316" text-anchor="middle" font-size="11" fill="#fff" font-weight="600">Apply G4 move &rarr; record step</text>
+
+  <line x1="640" y1="327" x2="640" y2="345" stroke="#64748b" stroke-width="1.5"/>
+  <rect x="530" y="345" width="220" height="28" rx="6" fill="#e2e8f0" stroke="#94a3b8"/>
+  <text x="640" y="364" text-anchor="middle" font-size="10" fill="#475569" font-weight="600">All gains at target? &rarr; No: loop</text>
+
+  <path d="M 530 359 L 470 359 L 470 131 L 475 131" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"/>
+
+  <text x="640" y="410" text-anchor="middle" font-size="12" font-weight="700" fill="#059669">Yes &rarr; DONE</text>
+
+  <!-- Arrow marker -->
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/>
+    </marker>
+  </defs>
+</svg>
+
+<!-- ================================================================ -->
+<h2 id="s5">5. Phase 1: Non-G4 Stepping with G4 Compensation</h2>
+
+<h3>5.1 Requirements</h3>
+
+<div class="req">
+  <span class="req-id">REQ-010</span>
+  Phase 1 SHALL iterate until all non-G4 gain stages have reached their target values, or until no feasible move exists, or until the iteration limit is reached.
+</div>
+
+<div class="req">
+  <span class="req-id">REQ-011</span>
+  In Phase 1, candidate generation SHALL exclude all G4 gain stages.
+</div>
+
+<div class="req">
+  <span class="req-id">REQ-012</span>
+  After selecting and applying the primary move, the algorithm SHALL compute a G4 correction step that adjusts G4 for every channel whose cumulative EIRP deviates from the initial EIRP.
+</div>
+
+<div class="req">
+  <span class="req-id">REQ-013</span>
+  The G4 correction step SHALL be recorded as a separate TransitionStep (not merged with the primary step).
+</div>
+
+<div class="req">
+  <span class="req-id">REQ-014</span>
+  Multiple G4 gain instances SHALL be updated simultaneously in a single G4 correction step.
+</div>
+
+<h3>5.2 Pseudocode</h3>
+
+<pre><code>function runPhase1(channels, gainStages, params):
+    {gainValues, targetValues, granularities} = initState(gainStages)
+    initialEirp = computeAllChannelEirp(channels, gainValues)
+    initialSystemTemp = computeAllSystemTemp(channels, gainValues, gainStages)
+    steps = []
+    violations = 0
+    hasEirpLimits = (params.maxNegativeEirpDeviation != null
+                  OR params.maxPositiveEirpDeviation != null)
+
+    for iter = 0 to params.maxIterations - 1:
+
+        // Check if all non-G4 gains are at target
+        nonG4Done = true
+        for each key in targetValues:
+            if key starts with "G4:": continue
+            if |gainValues[key] - targetValues[key]| >= granularities[key] * 0.01:
+                nonG4Done = false
+                break
+        if nonG4Done: break
+
+        // 1. Generate candidates excluding G4
+        candidates = generateCandidateMoves(gainValues, targetValues,
+                                            granularities, excludeTypes={"G4"})
+        if candidates is empty: break
+
+        // 2. Filter by power thresholds
+        feasible = filter candidates where:
+            checkPowerFeasibility(move, gainValues, channels, gainStages) == true
+
+        if feasible is empty:
+            // Deadlock: relax power thresholds by 1 dB
+            feasible = filterRelaxedPower(candidates, gainValues, channels, gainStages)
+            if feasible is empty: break   // truly stuck
+            violations++
+
+        // 3. Filter by EIRP limits (checking BOTH intermediate states)
+        if hasEirpLimits:
+            eirpFiltered = filterEirpWithG4After(
+                feasible, gainValues, channels, initialEirp, params,
+                granularities, gainStages)
+            if eirpFiltered is empty:
+                return ERROR("EIRP limits infeasible",
+                    bestAchievableDeviation(feasible, gainValues, channels, initialEirp))
+            feasible = eirpFiltered
+
+        // 4. Pick best candidate (most progress)
+        best = pickBestByProgress(feasible)
+
+        // 5. Apply primary move
+        applyMove(best, gainValues)
+        record TransitionStep(best, gainValues, channels, gainStages, initialEirp)
+
+        // 6. Compute and apply G4 correction
+        g4Correction = computeG4CorrectionAfter(
+            gainValues, channels, initialEirp, granularities, gainStages)
+        if g4Correction is not null:
+            applyMove(g4Correction, gainValues)
+            record TransitionStep(g4Correction, gainValues, channels, gainStages, initialEirp)
+
+    return {steps, gainValues, violations}</code></pre>
+
+<!-- ================================================================ -->
+<h2 id="s6">6. Phase 2: G4 Stepping to Final Targets</h2>
+
+<h3>6.1 Requirements</h3>
+
+<div class="req">
+  <span class="req-id">REQ-020</span>
+  Phase 2 SHALL iterate until all gain stages (including G4) have reached their target values.
+</div>
+
+<div class="req">
+  <span class="req-id">REQ-021</span>
+  In Phase 2, candidate generation SHALL produce only G4 candidates.
+</div>
+
+<div class="req">
+  <span class="req-id">REQ-022</span>
+  In Phase 2, there is NO G4 correction step. Candidates are filtered by standard EIRP limits (single post-move state).
+</div>
+
+<h3>6.2 Pseudocode</h3>
+
+<pre><code>function runPhase2(channels, gainStages, params, gainValues, targetValues,
+                   granularities, initialEirp, steps, violations):
+
+    hasEirpLimits = (params.maxNegativeEirpDeviation != null
+                  OR params.maxPositiveEirpDeviation != null)
+
+    for iter = 0 to params.maxIterations - 1:
+
+        if allAtTarget(gainValues, targetValues, granularities): break
+
+        // Generate all candidates, then keep only G4
+        allCandidates = generateCandidateMoves(gainValues, targetValues, granularities)
+        g4Candidates = filter allCandidates where stageType == "G4"
+        if g4Candidates is empty: break
+
+        // Filter by power thresholds
+        feasible = filter g4Candidates where:
+            checkPowerFeasibility(move, gainValues, channels, gainStages) == true
+
+        if feasible is empty:
+            feasible = filterRelaxedPower(g4Candidates, gainValues, channels, gainStages)
+            if feasible is empty: break
+            violations++
+
+        // Filter by EIRP limits (standard single-state check)
+        if hasEirpLimits:
+            eirpFiltered = filterEirpStandard(
+                feasible, gainValues, channels, initialEirp, params)
+            if eirpFiltered is empty:
+                return ERROR("EIRP limits infeasible in Phase 2",
+                    bestAchievableDeviation(feasible, gainValues, channels, initialEirp))
+            feasible = eirpFiltered
+
+        // Pick best by progress
+        best = pickBestByProgress(feasible)
+        applyMove(best, gainValues)
+        record TransitionStep(best, gainValues, channels, gainStages, initialEirp)
+
+    return {steps, gainValues, violations}</code></pre>
+
+<!-- ================================================================ -->
+<h2 id="s7">7. Candidate Generation</h2>
+
+<div class="req">
+  <span class="req-id">REQ-030</span>
+  The candidate generator SHALL group pending gain changes by stage type (G1, G2, &hellip;, G7).
+</div>
+
+<div class="req">
+  <span class="req-id">REQ-031</span>
+  For analog stages (G1, G7), the generator SHALL produce one candidate per antenna per step multiplier (1&middot;&gamma;, 2&middot;&gamma;, &hellip;, up to the remaining delta for that antenna).
+</div>
+
+<div class="req">
+  <span class="req-id">REQ-032</span>
+  For digital stages (G2&ndash;G6), the generator SHALL produce one candidate per step multiplier. Within each candidate, every instance of that stage type moves by <code>min(multiplier, instance_remaining_steps) &middot; &gamma;</code> toward its target.
+</div>
+
+<div class="req">
+  <span class="req-id">REQ-033</span>
+  A gain stage that has already reached its target (remaining delta &lt; 0.01&middot;&gamma;) SHALL NOT produce candidates.
+</div>
+
+<div class="req">
+  <span class="req-id">REQ-034</span>
+  When <code>excludeTypes</code> is provided, all stage types in the set SHALL be excluded from candidate generation.
+</div>
+
+<h3>7.1 Pseudocode</h3>
+
+<pre><code>function generateCandidateMoves(gainValues, targetValues, granularities, excludeTypes={}):
+    ANALOG_STAGES = {"G1", "G7"}
+    moves = []
+
+    // Group pending changes by stage type
+    pendingByType = new Map()
+    for each key in targetValues:
+        remaining = targetValues[key] - gainValues[key]
+        gran = granularities[key]
+        if |remaining| &lt; gran * 0.01: continue    // already at target
+
+        stageType = key.split(":")[0]              // e.g., "G1", "G3"
+        if stageType in excludeTypes: continue
+
+        direction = +1 if remaining &gt; 0, else -1
+        maxSteps = round(|remaining| / gran)
+        add {key, maxSteps, gran, direction} to pendingByType[stageType]
+
+    // Generate candidates for each type
+    for each (stageType, pending) in pendingByType:
+
+        if stageType in ANALOG_STAGES:
+            // One antenna per candidate, with varying step sizes
+            for each {key, maxSteps, gran, direction} in pending:
+                for n = 1 to maxSteps:
+                    moves.push({
+                        steps: [{gainStageKey: key, delta: direction * n * gran}],
+                        stageType: stageType
+                    })
+
+        else:  // Digital stage
+            // All instances together, with varying multiplier
+            maxMultiplier = max(p.maxSteps for p in pending)
+            for n = 1 to maxMultiplier:
+                steps = []
+                for each {key, maxSteps, gran, direction} in pending:
+                    actualN = min(n, maxSteps)
+                    steps.push({gainStageKey: key, delta: direction * actualN * gran})
+                moves.push({steps, stageType})
+
+    return moves</code></pre>
+
+<!-- ================================================================ -->
+<h2 id="s8">8. Power Feasibility Check</h2>
+
+<div class="req">
+  <span class="req-id">REQ-040</span>
+  Before selecting a candidate, the algorithm SHALL verify that applying the move does not cause any gain stage output power to exceed its upper or lower threshold.
+</div>
+
+<div class="req">
+  <span class="req-id">REQ-041</span>
+  A tolerance of 0.001 dBm SHALL be applied to avoid floating-point boundary rejection.
+</div>
+
+<h3>8.1 Pseudocode</h3>
+
+<pre><code>function checkPowerFeasibility(move, gainValues, channels, gainStages):
+    tempGains = copy of gainValues
+    for each step in move.steps:
+        tempGains[step.gainStageKey] += step.delta
+
+    powerLevels = computeAllPowerLevels(channels, tempGains)
+
+    for each (key, power) in powerLevels:
+        stage = gainStages.get(key)
+        if power &gt; stage.upperThreshold + 0.001: return false
+        if power &lt; stage.lowerThreshold - 0.001: return false
+
+    return true</code></pre>
+
+<!-- ================================================================ -->
+<h2 id="s9">9. EIRP Computation</h2>
+
+<div class="req">
+  <span class="req-id">REQ-050</span>
+  The EIRP of channel <em>c</em> SHALL be computed as the sum of input power and all 7 gain stages in the channel's chain.
+</div>
+
+<h3>9.1 Formulas</h3>
+
+<p><strong>Input power:</strong></p>
+<span class="eq">P<sub>in,c</sub> = IPFD<sub>c</sub> + 10 &middot; log<sub>10</sub>(BW<sub>c</sub> &middot; 10<sup>6</sup>) &nbsp;&nbsp; [dBm]</span>
+
+<p><strong>Channel EIRP:</strong></p>
+<span class="eq">EIRP<sub>c</sub> = P<sub>in,c</sub> + g<sub>G1</sub> + g<sub>G2</sub> + g<sub>G3</sub> + g<sub>G4</sub> + g<sub>G5</sub> + g<sub>G6</sub> + g<sub>G7</sub> &nbsp;&nbsp; [dBm]</span>
+
+<p>where each <code>g</code> is the current gain value (dB) of the corresponding stage in the channel's chain.</p>
+
+<p><strong>EIRP deviation from initial:</strong></p>
+<span class="eq">&Delta;EIRP<sub>c</sub> = EIRP<sub>c</sub><sup>(current)</sup> &minus; EIRP<sub>c</sub><sup>(initial)</sup> &nbsp;&nbsp; [dB]</span>
+
+<h3>9.2 Pseudocode</h3>
+
+<pre><code>function computeChannelEirp(channel, gainValues):
+    chain = getChannelGainChain(channel)   // [G1:rx.., G2:rx.., G3:ch.., G4:ch.., G5:ch.., G6:tx.., G7:tx..]
+    pIn = channel.ipfd + 10 * log10(channel.bandwidthMHz * 1e6)
+    eirp = pIn
+    for each key in chain:
+        eirp += gainValues[key]
+    return eirp
+
+function computeAllChannelEirp(channels, gainValues):
+    result = {}
+    for each channel in channels:
+        result[channel.id] = computeChannelEirp(channel, gainValues)
+    return result</code></pre>
+
+<!-- ================================================================ -->
+<h2 id="s10">10. EIRP Deviation Filtering (with Intermediate State Check)</h2>
+
+<div class="req">
+  <span class="req-id">REQ-060</span>
+  In Phase 1, the EIRP filter SHALL check <strong>both</strong> intermediate states in the two-step sequence:
+  <ol>
+    <li><strong>State A (post-primary, pre-G4):</strong> EIRP after the primary move is applied but before G4 correction.</li>
+    <li><strong>State B (post-G4):</strong> EIRP after G4 correction is also applied.</li>
+  </ol>
+  A candidate is rejected if <em>either</em> state violates the EIRP limits.
+</div>
+
+<div class="req">
+  <span class="req-id">REQ-061</span>
+  In Phase 2, the EIRP filter SHALL check only the single post-move state (standard check).
+</div>
+
+<div class="req">
+  <span class="req-id">REQ-062</span>
+  The negative EIRP limit SHALL reject any move where any channel's deviation is below <code>&minus;maxNegativeEirpDeviation</code> (with 0.001 dB tolerance).
+</div>
+
+<div class="req">
+  <span class="req-id">REQ-063</span>
+  The positive EIRP limit SHALL reject any move where any channel's deviation exceeds <code>+maxPositiveEirpDeviation</code> (with 0.001 dB tolerance).
+</div>
+
+<div class="req">
+  <span class="req-id">REQ-064</span>
+  Either limit may be null (unconstrained) independently of the other.
+</div>
+
+<h3>10.1 Pseudocode: Phase 1 EIRP Filter (After Mode)</h3>
+
+<pre><code>function filterEirpWithG4After(candidates, gainValues, channels,
+                                initialEirp, params, granularities, gainStages):
+    negLimit = params.maxNegativeEirpDeviation
+    posLimit = params.maxPositiveEirpDeviation
+
+    return filter candidates where:
+
+        // State A: after primary step (before G4)
+        tempA = copy of gainValues
+        for each step in move.steps:
+            tempA[step.gainStageKey] += step.delta
+        eirpA = computeAllChannelEirp(channels, tempA)
+
+        if NOT checkEirpWithinLimits(eirpA, initialEirp, channels, negLimit, posLimit):
+            reject
+
+        // State B: after G4 correction
+        currentEirp = computeAllChannelEirp(channels, tempA)
+        g4Correction = computeG4StepsFromDeviation(initialEirp, currentEirp,
+                                                    channels, tempA, granularities, gainStages)
+        if g4Correction is not null:
+            for each step in g4Correction.steps:
+                tempA[step.gainStageKey] += step.delta
+        eirpB = computeAllChannelEirp(channels, tempA)
+
+        if NOT checkEirpWithinLimits(eirpB, initialEirp, channels, negLimit, posLimit):
+            reject
+
+        accept
+
+function checkEirpWithinLimits(eirp, initialEirp, channels, negLimit, posLimit):
+    for each channel in channels:
+        dev = eirp[channel.id] - initialEirp[channel.id]
+        if negLimit != null AND dev &lt; -(negLimit + 0.001): return false
+        if posLimit != null AND dev &gt;  (posLimit + 0.001): return false
+    return true</code></pre>
+
+<h3>10.2 Pseudocode: Phase 2 EIRP Filter (Standard)</h3>
+
+<pre><code>function filterEirpStandard(candidates, gainValues, channels, initialEirp, params):
+    negLimit = params.maxNegativeEirpDeviation
+    posLimit = params.maxPositiveEirpDeviation
+
+    return filter candidates where:
+        temp = copy of gainValues
+        for each step in move.steps:
+            temp[step.gainStageKey] += step.delta
+        eirp = computeAllChannelEirp(channels, temp)
+        checkEirpWithinLimits(eirp, initialEirp, channels, negLimit, posLimit) == true</code></pre>
+
+<!-- ================================================================ -->
+<h2 id="s11">11. G4 Correction Computation</h2>
+
+<div class="req">
+  <span class="req-id">REQ-070</span>
+  The G4 correction SHALL compare the current EIRP of each channel with the initial EIRP and compute a G4 delta that opposes the deviation.
+</div>
+
+<div class="req">
+  <span class="req-id">REQ-071</span>
+  The G4 correction delta SHALL be quantized to the nearest whole number of G4 granularity steps.
+</div>
+
+<div class="req">
+  <span class="req-id">REQ-072</span>
+  If the quantized correction is zero steps for a channel, that channel SHALL NOT produce a G4 atomic step.
+</div>
+
+<div class="req">
+  <span class="req-id">REQ-073</span>
+  If no channels require correction (all quantized to zero), the G4 correction step SHALL be omitted entirely.
+</div>
+
+<h3>11.1 Formula</h3>
+
+<p>For each channel <em>c</em>:</p>
+
+<span class="eq">deviation<sub>c</sub> = EIRP<sub>c</sub><sup>(current)</sup> &minus; EIRP<sub>c</sub><sup>(initial)</sup></span>
+
+<span class="eq">rawCorrection<sub>c</sub> = &minus;deviation<sub>c</sub></span>
+
+<span class="eq">numSteps<sub>c</sub> = round(rawCorrection<sub>c</sub> / &gamma;<sub>G4,c</sub>)</span>
+
+<span class="eq">&Delta;G4<sub>c</sub> = numSteps<sub>c</sub> &middot; &gamma;<sub>G4,c</sub></span>
+
+<h3>11.2 Pseudocode</h3>
+
+<pre><code>function computeG4CorrectionAfter(gainValues, channels, initialEirp,
+                                    granularities, gainStages):
+    currentEirp = computeAllChannelEirp(channels, gainValues)
+    return computeG4StepsFromDeviation(initialEirp, currentEirp,
+                                        channels, gainValues, granularities, gainStages)
+
+function computeG4StepsFromDeviation(referenceEirp, actualEirp,
+                                      channels, gainValues, granularities, gainStages):
+    g4Steps = []
+
+    for each channel in channels:
+        deviation = actualEirp[channel.id] - referenceEirp[channel.id]
+        if |deviation| &lt; 0.001: continue     // negligible
+
+        g4Key = "G4:ch" + channel.id
+        g4Gran = granularities[g4Key]
+        if g4Gran is undefined: continue
+
+        rawCorrection = -deviation
+        numSteps = round(rawCorrection / g4Gran)
+        if numSteps == 0: continue
+
+        g4Steps.push({gainStageKey: g4Key, delta: numSteps * g4Gran})
+
+    if g4Steps is empty: return null
+
+    return {steps: g4Steps, stageType: "G4"}</code></pre>
+
+<div class="warn">
+  <strong>Quantization residual.</strong> When the EIRP deviation is not an exact multiple of the G4 granularity, the correction will have a residual. For example, if the deviation is 0.37 dB and &gamma;<sub>G4</sub> = 0.25 dB, the correction is round(&minus;0.37 / 0.25) = &minus;1 step = &minus;0.25 dB, leaving a residual of &minus;0.12 dB. This residual accumulates but is bounded by &gamma;<sub>G4</sub>/2.
+</div>
+
+<!-- ================================================================ -->
+<h2 id="s12">12. Scoring &amp; Selection</h2>
+
+<div class="req">
+  <span class="req-id">REQ-080</span>
+  Among feasible candidates, the algorithm SHALL select the one with the most total gain progress (largest sum of absolute deltas).
+</div>
+
+<div class="req">
+  <span class="req-id">REQ-081</span>
+  When two candidates have equal progress (within 0.001 dB), the algorithm SHALL prefer the one with fewer atomic steps.
+</div>
+
+<h3>12.1 Formula</h3>
+
+<span class="eq">score(move) = &minus; &sum;<sub>s &isin; move.steps</sub> |s.delta|</span>
+
+<p>Lower score = better (more progress). The candidate with the minimum score is selected.</p>
+
+<h3>12.2 Pseudocode</h3>
+
+<pre><code>function pickBestByProgress(feasible):
+    scored = []
+    for each move in feasible:
+        progress = sum of |step.delta| for step in move.steps
+        scored.push({move, score: -progress})
+
+    sort scored by:
+        1. score ascending (more progress first)
+        2. on tie (|scoreA - scoreB| &lt; 0.001): fewer steps preferred
+
+    return scored[0].move</code></pre>
+
+<!-- ================================================================ -->
+<h2 id="s13">13. Power Level Cascade</h2>
+
+<div class="req">
+  <span class="req-id">REQ-090</span>
+  Power at each gain stage output SHALL be computed by cascading through the channel's gain chain in dB.
+</div>
+
+<div class="req">
+  <span class="req-id">REQ-091</span>
+  For shared stages (G1, G2, G6, G7), the output power SHALL be the sum in the linear domain of all channels passing through that stage, converted back to dBm.
+</div>
+
+<div class="req">
+  <span class="req-id">REQ-092</span>
+  For per-channel stages (G3, G4, G5), the output power SHALL be the single channel's cascaded power.
+</div>
+
+<h3>13.1 Formulas</h3>
+
+<p><strong>Per-channel cascade (dB domain):</strong></p>
+<span class="eq">P<sub>out</sub>(k<sub>j</sub>, c) = P<sub>in,c</sub> + &sum;<sub>i=1..j</sub> g<sub>k<sub>i</sub></sub></span>
+
+<p><strong>Shared stage aggregation (linear domain):</strong></p>
+<span class="eq">P<sub>shared</sub>(k) = 10 &middot; log<sub>10</sub> &Big( &sum;<sub>c &isin; C(k)</sub> 10<sup>P<sub>out</sub>(k,c)/10</sup> &Big;) &nbsp;&nbsp; [dBm]</span>
+
+<p>where C(k) is the set of all channels passing through stage k.</p>
+
+<h3>13.2 Pseudocode</h3>
+
+<pre><code>function computeAllPowerLevels(channels, gainValues):
+    powerLevels = {}
+
+    for each channel in channels:
+        chain = getChannelGainChain(channel)
+        pIn = channel.ipfd + 10 * log10(channel.bandwidthMHz * 1e6)
+        cumulative = pIn
+
+        for each key in chain:
+            cumulative += gainValues[key]
+            stageType = key.split(":")[0]
+
+            if stageType in {"G3", "G4", "G5"}:
+                // Per-channel: store directly
+                powerLevels[key] = cumulative
+            else:
+                // Shared: accumulate in linear domain
+                linear = 10^(cumulative / 10)
+                if key in powerLevels:
+                    existingLinear = 10^(powerLevels[key] / 10)
+                    powerLevels[key] = 10 * log10(existingLinear + linear)
+                else:
+                    powerLevels[key] = cumulative
+
+    return powerLevels</code></pre>
+
+<!-- ================================================================ -->
+<h2 id="s14">14. System Noise Temperature</h2>
+
+<div class="req">
+  <span class="req-id">REQ-100</span>
+  The system noise temperature SHALL be computed at every step using the Friis cascade formula over the receive chain (G1, G2, G3 only).
+</div>
+
+<div class="req">
+  <span class="req-id">REQ-101</span>
+  Transmit-side stages (G4&ndash;G7) SHALL NOT contribute to the system noise temperature.
+</div>
+
+<h3>14.1 Formula</h3>
+
+<span class="eq">T<sub>sys,c</sub> = T<sub>ant,c</sub> + T<sub>G1</sub> + T<sub>G2</sub> / G<sub>1</sub><sup>lin</sup> + T<sub>G3</sub> / (G<sub>1</sub><sup>lin</sup> &middot; G<sub>2</sub><sup>lin</sup>)</span>
+
+<p>where:</p>
+<ul>
+  <li>T<sub>ant,c</sub> = antenna noise temperature for channel <em>c</em> (K)</li>
+  <li>T<sub>n</sub> = 290 &middot; (10<sup>NF<sub>n</sub>/10</sup> &minus; 1) &nbsp;&nbsp; [K] &mdash; equivalent noise temperature of stage <em>n</em></li>
+  <li>G<sub>n</sub><sup>lin</sup> = 10<sup>g<sub>n</sub>/10</sup> &mdash; linear gain of stage <em>n</em></li>
+  <li>NF<sub>n</sub> = noise figure of stage <em>n</em> (dB)</li>
+</ul>
+
+<h3>14.2 Pseudocode</h3>
+
+<pre><code>function computeChannelSystemTemp(channel, gainValues, gainStages):
+    T0 = 290   // standard reference temperature (K)
+    chain = getChannelGainChain(channel)
+    rxStageKeys = filter chain to keys starting with "G1:", "G2:", "G3:"
+
+    tSys = channel.antennaNoiseTemp
+    cumulativeGainLinear = 1.0
+
+    for each key in rxStageKeys:
+        stage = gainStages.get(key)
+        stageTemp = T0 * (10^(stage.noiseFigure / 10) - 1)
+        stageGainLinear = 10^(gainValues[key] / 10)
+
+        tSys += stageTemp / cumulativeGainLinear
+        cumulativeGainLinear *= stageGainLinear
+
+    return tSys</code></pre>
+
+<!-- ================================================================ -->
+<h2 id="s15">15. Deadlock Resolution</h2>
+
+<div class="req">
+  <span class="req-id">REQ-110</span>
+  When no candidate passes strict power threshold checks, the algorithm SHALL relax all power thresholds by 1.0 dB in both directions and retry.
+</div>
+
+<div class="req">
+  <span class="req-id">REQ-111</span>
+  EIRP deviation limits SHALL NOT be relaxed during deadlock resolution.
+</div>
+
+<div class="req">
+  <span class="req-id">REQ-112</span>
+  Each threshold relaxation SHALL be counted and reported in <code>thresholdViolations</code>.
+</div>
+
+<div class="req">
+  <span class="req-id">REQ-113</span>
+  If no candidate passes even with relaxed thresholds, the algorithm SHALL terminate with <code>converged = false</code>.
+</div>
+
+<h3>15.1 Pseudocode</h3>
+
+<pre><code>function filterRelaxedPower(candidates, gainValues, channels, gainStages):
+    return filter candidates where:
+        tempGains = copy of gainValues
+        for each step in move.steps:
+            tempGains[step.gainStageKey] += step.delta
+        powerLevels = computeAllPowerLevels(channels, tempGains)
+        for each (key, power) in powerLevels:
+            stage = gainStages.get(key)
+            if power &gt; stage.upperThreshold + 1.0: reject
+            if power &lt; stage.lowerThreshold - 1.0: reject
+        accept</code></pre>
+
+<!-- ================================================================ -->
+<h2 id="s16">16. Termination &amp; Output</h2>
+
+<div class="req">
+  <span class="req-id">REQ-120</span>
+  The algorithm SHALL terminate when any of the following conditions is met:
+  <ol>
+    <li>All gain stages have reached their target values (converged = true)</li>
+    <li>No feasible move exists, even after deadlock resolution (converged = false)</li>
+    <li>EIRP limits are infeasible (error is set, converged = false)</li>
+    <li>The iteration limit is reached (converged = false)</li>
+  </ol>
+</div>
+
+<div class="req">
+  <span class="req-id">REQ-121</span>
+  Convergence SHALL be checked with tolerance: <code>|g<sub>k</sub> &minus; g<sub>k</sub><sup>target</sup>| &lt; 0.01 &middot; &gamma;<sub>k</sub></code> for all k.
+</div>
+
+<div class="req">
+  <span class="req-id">REQ-122</span>
+  The output SHALL include a complete ordered list of TransitionStep records, each containing a full system state snapshot (gain values, EIRP, power levels, system temperature).
+</div>
+
+<div class="req">
+  <span class="req-id">REQ-123</span>
+  When EIRP limits are infeasible, the error message SHALL include the smallest achievable worst-case deviation among all power-feasible candidates. This is computed by checking the intermediate (post-primary, pre-G4) state of each power-feasible candidate.
+</div>
+
+<!-- ================================================================ -->
+<h2 id="s17">17. Traceability Matrix</h2>
+
+<table>
+  <tr><th>Requirement</th><th>Section</th><th>Verified By</th></tr>
+  <tr><td>REQ-001</td><td>4</td><td>Two-phase structure: Phase 1 loop terminates on non-G4 convergence, Phase 2 loop follows</td></tr>
+  <tr><td>REQ-002</td><td>5</td><td>After each primary step, computeG4CorrectionAfter is called and applied</td></tr>
+  <tr><td>REQ-003</td><td>6</td><td>Phase 2 generates only G4 candidates, no G4 correction inserted</td></tr>
+  <tr><td>REQ-004</td><td>7</td><td>CandidateMove.stageType field enforces single-type grouping</td></tr>
+  <tr><td>REQ-005</td><td>7</td><td>Analog branch generates one candidate per antenna key</td></tr>
+  <tr><td>REQ-006</td><td>7</td><td>Digital branch combines all instances in each candidate</td></tr>
+  <tr><td>REQ-007</td><td>7</td><td>Multi-step loop: n = 1 to maxSteps/maxMultiplier</td></tr>
+  <tr><td>REQ-010&ndash;014</td><td>5</td><td>Phase 1 loop structure, excludeTypes={"G4"}, separate G4 step</td></tr>
+  <tr><td>REQ-020&ndash;022</td><td>6</td><td>Phase 2 loop structure, G4-only filter, standard EIRP check</td></tr>
+  <tr><td>REQ-030&ndash;034</td><td>7</td><td>Candidate generation pseudocode with grouping, multi-step, exclusion</td></tr>
+  <tr><td>REQ-040&ndash;041</td><td>8</td><td>Power feasibility check with 0.001 tolerance</td></tr>
+  <tr><td>REQ-050</td><td>9</td><td>EIRP = P_in + sum of 7 gains</td></tr>
+  <tr><td>REQ-060&ndash;064</td><td>10</td><td>Dual-state EIRP filter for Phase 1; single-state for Phase 2; asymmetric nullable limits</td></tr>
+  <tr><td>REQ-070&ndash;073</td><td>11</td><td>G4 correction with quantization, zero-step skip, null return</td></tr>
+  <tr><td>REQ-080&ndash;081</td><td>12</td><td>Progress-based scoring with tiebreaker</td></tr>
+  <tr><td>REQ-090&ndash;092</td><td>13</td><td>Power cascade with linear aggregation for shared stages</td></tr>
+  <tr><td>REQ-100&ndash;101</td><td>14</td><td>Friis formula on G1/G2/G3 only</td></tr>
+  <tr><td>REQ-110&ndash;113</td><td>15</td><td>Relaxed power filter, EIRP never relaxed, violation counting, termination</td></tr>
+  <tr><td>REQ-120&ndash;123</td><td>16</td><td>Four termination conditions, convergence tolerance, step records, error reporting</td></tr>
+</table>
+
+<footer style="margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid var(--border); color: var(--caption); font-size: 0.85rem;">
+  <p><strong>G4-Compensated (After) Algorithm &mdash; Requirements Specification</strong></p>
+  <p>Payload Gain Transition Optimizer &middot; CCGS Framework</p>
+  <p>Self-contained document for independent implementation.</p>
+</footer>
+
+</body>
+</html>
