@@ -1,12 +1,19 @@
 import type { AlgorithmParams, CandidateMove, Channel } from '../types';
-import { computeAllChannelEirp } from '../core/eirp';
 
 /** Gain stage types considered "inner" (per-channel) for inner-first strategy */
 const INNER_STAGES = new Set(['G3', 'G4', 'G5']);
 
 /**
  * Score a candidate move. Lower score = better.
- * Minimizes total absolute EIRP deviation from initial across all channels.
+ *
+ * Primary criterion: maximize progress toward target gains.
+ * Progress is measured as the total absolute delta applied across all steps,
+ * expressed as negative cost (more progress = lower score).
+ *
+ * The EIRP deviation limits act as hard feasibility filters upstream —
+ * any candidate reaching scoring has already been verified to stay within
+ * the allowed EIRP envelope. So scoring purely by progress lets the
+ * algorithm exploit the full allowed deviation headroom to finish faster.
  */
 export function scoreCandidate(
   move: CandidateMove,
@@ -15,23 +22,18 @@ export function scoreCandidate(
   initialEirp: Record<string, number>,
   _params: AlgorithmParams
 ): number {
-  const tempGains = { ...currentGainValues };
+  // Progress = total absolute gain delta applied (more = better = lower cost)
+  let progress = 0;
   for (const step of move.steps) {
-    tempGains[step.gainStageKey] = (tempGains[step.gainStageKey] ?? 0) + step.delta;
+    progress += Math.abs(step.delta);
   }
 
-  const newEirp = computeAllChannelEirp(channels, tempGains);
-
-  let cost = 0;
-  for (const ch of channels) {
-    cost += Math.abs(newEirp[ch.id] - initialEirp[ch.id]);
-  }
-
-  return cost;
+  // Return negative progress so that larger moves score lower (better)
+  return -progress;
 }
 
 /**
- * Compare two candidate moves for tiebreaking.
+ * Compare two candidate moves for tiebreaking (same score).
  * Returns negative if a is preferred over b.
  */
 export function compareCandidates(a: CandidateMove, b: CandidateMove, params: AlgorithmParams): number {
@@ -42,5 +44,6 @@ export function compareCandidates(a: CandidateMove, b: CandidateMove, params: Al
     if (!aInner && bInner) return 1;
   }
 
+  // Prefer fewer steps (simpler move) when progress is equal
   return a.steps.length - b.steps.length;
 }

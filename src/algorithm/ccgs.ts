@@ -441,16 +441,12 @@ function pickBestWithG4(
   couplingMap: Map<string, string[]>
 ): CandidateMove {
   const scored = feasible.map(move => {
-    // Score using the post-G4-correction EIRP state
-    const postGains = simulateWithG4Correction(
-      move, gainValues, channels, initialEirp, granularities, gainStages, params.g4CompensationMode
-    );
-    const eirp = computeAllChannelEirp(channels, postGains);
-    let cost = 0;
-    for (const ch of channels) {
-      cost += Math.abs(eirp[ch.id] - initialEirp[ch.id]);
+    // Score by progress: total absolute delta applied (more = better = lower cost)
+    let progress = 0;
+    for (const step of move.steps) {
+      progress += Math.abs(step.delta);
     }
-    return { move, score: cost };
+    return { move, score: -progress };
   });
   scored.sort((a, b) => {
     const diff = a.score - b.score;
