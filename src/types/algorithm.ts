@@ -42,5 +42,8 @@ export interface TransitionResult {
   maxPositiveDeviation: number;
   totalSteps: number;
   thresholdViolations: number;
+  eirpLimitViolations: number; // steps where EIRP limits were exceeded (best-effort)
   converged: boolean;
+  requestedNegativeLimit: number | null;
+  requestedPositiveLimit: number | null;
 }

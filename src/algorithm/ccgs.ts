@@ -53,6 +53,7 @@ function runStandard(
   let maxNegDev = 0;
   let maxPosDev = 0;
   let violations = 0;
+  let eirpViolations = 0;
 
   for (let iter = 0; iter < params.maxIterations; iter++) {
     if (allAtTarget(gainValues, targetValues, granularities)) break;
@@ -63,10 +64,26 @@ function runStandard(
     let feasible = filterFeasible(candidates, gainValues, channels, gainStages, initialEirp, params);
 
     if (feasible.length === 0) {
+      // Try relaxed power thresholds (but keep EIRP limits)
       const relaxed = filterRelaxed(candidates, gainValues, channels, gainStages, initialEirp, params);
-      if (relaxed.length === 0) break;
-      violations++;
-      feasible = relaxed;
+      if (relaxed.length > 0) {
+        violations++;
+        feasible = relaxed;
+      } else {
+        // EIRP limits too tight — find the least-violating move among power-feasible candidates
+        const powerFeasible = candidates.filter(move => checkFeasibility(move, gainValues, channels, gainStages));
+        if (powerFeasible.length === 0) {
+          // Also try relaxed power thresholds without EIRP limit
+          const powerRelaxed = filterRelaxedPowerOnly(candidates, gainValues, channels, gainStages);
+          if (powerRelaxed.length === 0) break; // truly stuck
+          violations++;
+          eirpViolations++;
+          feasible = [pickLeastEirpViolating(powerRelaxed, gainValues, channels, initialEirp)];
+        } else {
+          eirpViolations++;
+          feasible = [pickLeastEirpViolating(powerFeasible, gainValues, channels, initialEirp)];
+        }
+      }
     }
 
     const best = pickBest(feasible, gainValues, channels, initialEirp, params);
@@ -78,7 +95,7 @@ function runStandard(
     maxPosDev = devs.pos;
   }
 
-  return buildResult(steps, initialEirp, initialGainValues, gainValues, targetValues, granularities, channels, maxNegDev, maxPosDev, violations);
+  return buildResult(steps, initialEirp, initialGainValues, gainValues, targetValues, granularities, channels, maxNegDev, maxPosDev, violations, eirpViolations, params);
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -101,12 +118,12 @@ function runG4Compensated(
   let maxNegDev = 0;
   let maxPosDev = 0;
   let violations = 0;
+  let eirpViolations = 0;
 
   const excludeG4 = new Set(['G4']);
 
   // ── Phase 1: non-G4 gains with G4 compensation ──
   for (let iter = 0; iter < params.maxIterations; iter++) {
-    // Check if all non-G4 are at target
     const nonG4AtTarget = Object.keys(targetValues).every(key => {
       if (key.startsWith('G4:')) return true;
       return Math.abs(gainValues[key] - targetValues[key]) < granularities[key] * 0.01;
@@ -116,9 +133,6 @@ function runG4Compensated(
     const candidates = generateCandidateMoves(gainValues, targetValues, granularities, excludeG4);
     if (candidates.length === 0) break;
 
-    // In G4-compensated mode, scoring and feasibility must account for the
-    // upcoming G4 correction. We simulate primary move + G4 correction
-    // to evaluate the effective post-correction state.
     let feasible = filterFeasibleWithG4(
       candidates, gainValues, channels, gainStages, initialEirp, params,
       granularities, couplingMap
@@ -128,9 +142,23 @@ function runG4Compensated(
         candidates, gainValues, channels, gainStages, initialEirp, params,
         granularities, couplingMap
       );
-      if (relaxed.length === 0) break;
-      violations++;
-      feasible = relaxed;
+      if (relaxed.length > 0) {
+        violations++;
+        feasible = relaxed;
+      } else {
+        // EIRP limits too tight — least-violating among power-feasible
+        const powerFeasible = candidates.filter(move => checkFeasibility(move, gainValues, channels, gainStages));
+        if (powerFeasible.length === 0) {
+          const powerRelaxed = filterRelaxedPowerOnly(candidates, gainValues, channels, gainStages);
+          if (powerRelaxed.length === 0) break;
+          violations++;
+          eirpViolations++;
+          feasible = [pickLeastEirpViolating(powerRelaxed, gainValues, channels, initialEirp)];
+        } else {
+          eirpViolations++;
+          feasible = [pickLeastEirpViolating(powerFeasible, gainValues, channels, initialEirp)];
+        }
+      }
     }
 
     const best = pickBestWithG4(
@@ -139,7 +167,6 @@ function runG4Compensated(
     );
 
     if (params.g4CompensationMode === 'before') {
-      // Pre-compensate: compute what the primary step will do to EIRP, apply G4 correction first
       const g4Step = buildG4Correction(best, gainValues, channels, couplingMap, granularities, gainStages);
       if (g4Step) {
         applyMove(g4Step, gainValues);
@@ -148,14 +175,12 @@ function runG4Compensated(
         const d = trackDeviation(s, maxNegDev, maxPosDev);
         maxNegDev = d.neg; maxPosDev = d.pos;
       }
-      // Then apply the primary step
       applyMove(best, gainValues);
       const s2 = recordStep(steps.length, best, gainValues, channels, gainStages, initialEirp);
       steps.push(s2);
       const d2 = trackDeviation(s2, maxNegDev, maxPosDev);
       maxNegDev = d2.neg; maxPosDev = d2.pos;
     } else {
-      // After: apply primary step first, then G4 correction
       applyMove(best, gainValues);
       const s1 = recordStep(steps.length, best, gainValues, channels, gainStages, initialEirp);
       steps.push(s1);
@@ -177,7 +202,6 @@ function runG4Compensated(
   for (let iter = 0; iter < params.maxIterations; iter++) {
     if (allAtTarget(gainValues, targetValues, granularities)) break;
 
-    // Only generate G4 candidates
     const g4Only = generateCandidateMoves(gainValues, targetValues, granularities);
     const g4Candidates = g4Only.filter(m => m.stageType === 'G4');
     if (g4Candidates.length === 0) break;
@@ -185,9 +209,22 @@ function runG4Compensated(
     let feasible = filterFeasible(g4Candidates, gainValues, channels, gainStages, initialEirp, params);
     if (feasible.length === 0) {
       const relaxed = filterRelaxed(g4Candidates, gainValues, channels, gainStages, initialEirp, params);
-      if (relaxed.length === 0) break;
-      violations++;
-      feasible = relaxed;
+      if (relaxed.length > 0) {
+        violations++;
+        feasible = relaxed;
+      } else {
+        const powerFeasible = g4Candidates.filter(move => checkFeasibility(move, gainValues, channels, gainStages));
+        if (powerFeasible.length === 0) {
+          const powerRelaxed = filterRelaxedPowerOnly(g4Candidates, gainValues, channels, gainStages);
+          if (powerRelaxed.length === 0) break;
+          violations++;
+          eirpViolations++;
+          feasible = [pickLeastEirpViolating(powerRelaxed, gainValues, channels, initialEirp)];
+        } else {
+          eirpViolations++;
+          feasible = [pickLeastEirpViolating(powerFeasible, gainValues, channels, initialEirp)];
+        }
+      }
     }
 
     const best = pickBest(feasible, gainValues, channels, initialEirp, params);
@@ -199,7 +236,7 @@ function runG4Compensated(
     maxPosDev = devs.pos;
   }
 
-  return buildResult(steps, initialEirp, initialGainValues, gainValues, targetValues, granularities, channels, maxNegDev, maxPosDev, violations);
+  return buildResult(steps, initialEirp, initialGainValues, gainValues, targetValues, granularities, channels, maxNegDev, maxPosDev, violations, eirpViolations, params);
 }
 
 /**
@@ -523,6 +560,68 @@ function filterRelaxed(
   });
 }
 
+/**
+ * Filter by relaxed power thresholds only (no EIRP limit check).
+ * Used as a last resort when EIRP limits are infeasible.
+ */
+function filterRelaxedPowerOnly(
+  candidates: CandidateMove[],
+  gainValues: Record<string, number>,
+  channels: Channel[],
+  gainStages: Map<string, GainStage>
+): CandidateMove[] {
+  return candidates.filter(move => {
+    const tempGains = { ...gainValues };
+    for (const step of move.steps) {
+      tempGains[step.gainStageKey] = (tempGains[step.gainStageKey] ?? 0) + step.delta;
+    }
+    const powerLevels = computeAllPowerLevels(channels, tempGains);
+    for (const [key, power] of Object.entries(powerLevels)) {
+      const stage = gainStages.get(key);
+      if (!stage) continue;
+      if (power > stage.upperThreshold + 1.0 || power < stage.lowerThreshold - 1.0) return false;
+    }
+    return true;
+  });
+}
+
+/**
+ * Among candidates that may violate EIRP limits, pick the one with the
+ * smallest worst-case EIRP deviation (the best achievable).
+ * For equal deviation, prefer more progress.
+ */
+function pickLeastEirpViolating(
+  candidates: CandidateMove[],
+  gainValues: Record<string, number>,
+  channels: Channel[],
+  initialEirp: Record<string, number>
+): CandidateMove {
+  const scored = candidates.map(move => {
+    const tempGains = { ...gainValues };
+    for (const step of move.steps) {
+      tempGains[step.gainStageKey] = (tempGains[step.gainStageKey] ?? 0) + step.delta;
+    }
+    const eirp = computeAllChannelEirp(channels, tempGains);
+    let maxAbsDev = 0;
+    for (const ch of channels) {
+      const dev = Math.abs(eirp[ch.id] - initialEirp[ch.id]);
+      if (dev > maxAbsDev) maxAbsDev = dev;
+    }
+    let progress = 0;
+    for (const step of move.steps) {
+      progress += Math.abs(step.delta);
+    }
+    return { move, maxAbsDev, progress };
+  });
+  // Primary: smallest max deviation. Secondary: most progress.
+  scored.sort((a, b) => {
+    const devDiff = a.maxAbsDev - b.maxAbsDev;
+    if (Math.abs(devDiff) > 0.001) return devDiff;
+    return b.progress - a.progress; // more progress is better
+  });
+  return scored[0].move;
+}
+
 function pickBest(
   feasible: CandidateMove[],
   gainValues: Record<string, number>,
@@ -593,7 +692,9 @@ function buildResult(
   channels: Channel[],
   maxNegDev: number,
   maxPosDev: number,
-  violations: number
+  violations: number,
+  eirpViolations: number,
+  params: AlgorithmParams
 ): TransitionResult {
   const finalEirp = computeAllChannelEirp(channels, gainValues);
   const converged = allAtTarget(gainValues, targetValues, granularities);
@@ -607,6 +708,9 @@ function buildResult(
     maxPositiveDeviation: maxPosDev,
     totalSteps: steps.length,
     thresholdViolations: violations,
+    eirpLimitViolations: eirpViolations,
     converged,
+    requestedNegativeLimit: params.maxNegativeEirpDeviation,
+    requestedPositiveLimit: params.maxPositiveEirpDeviation,
   };
 }
