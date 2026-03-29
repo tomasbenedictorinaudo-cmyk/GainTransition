@@ -4,27 +4,28 @@ import {
 } from 'recharts';
 import type { TransitionResult } from '../../types';
 import { getGainStageLabel } from '../../core/serialization';
+import { ChartWrapper } from './ChartWrapper';
+import { useTheme } from '../../hooks/useTheme';
 
 interface Props {
   result: TransitionResult;
   currentStep: number;
-  selectedStages?: string[]; // gain stage keys to display
+  selectedStages?: string[];
 }
 
 const COLORS = ['#60a5fa', '#f472b6', '#34d399', '#fbbf24', '#a78bfa', '#fb923c', '#22d3ee', '#e879f9'];
 
 export function GainChart({ result, currentStep, selectedStages }: Props) {
-  // Determine which stages to show
+  const { theme } = useTheme();
   const allKeys = Object.keys(result.initialGainValues);
   const stagesToShow = selectedStages || allKeys.filter(k => {
-    const initial = result.initialGainValues[k];
-    const target = result.targetGainValues[k];
-    return Math.abs(target - initial) > 0.001;
+    return Math.abs(result.targetGainValues[k] - result.initialGainValues[k]) > 0.001;
   });
 
   if (stagesToShow.length === 0) {
+    const isDark = theme.mode === 'dark';
     return (
-      <div className="bg-slate-800/60 border border-slate-700 rounded-lg p-4 text-center text-slate-500 text-sm">
+      <div className={`${isDark ? 'bg-slate-800/60 border-slate-700 text-slate-500' : 'bg-white border-gray-200 text-gray-400'} border rounded-lg p-4 text-center text-sm`}>
         No gain changes to display
       </div>
     );
@@ -39,33 +40,23 @@ export function GainChart({ result, currentStep, selectedStages }: Props) {
   });
 
   return (
-    <div className="bg-slate-800/60 border border-slate-700 rounded-lg p-4">
-      <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
-        Gain Values Over Transition (dB)
-      </h4>
+    <ChartWrapper title="Gain Values Over Transition (dB)">
       <ResponsiveContainer width="100%" height={280}>
         <LineChart data={data} margin={{ top: 5, right: 20, bottom: 5, left: 10 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-          <XAxis dataKey="step" stroke="#64748b" tick={{ fontSize: 10 }} />
-          <YAxis stroke="#64748b" tick={{ fontSize: 10 }} />
+          <CartesianGrid strokeDasharray="3 3" stroke={theme.chartGrid} />
+          <XAxis dataKey="step" stroke={theme.chartAxis} tick={{ fontSize: 10 }} />
+          <YAxis stroke={theme.chartAxis} tick={{ fontSize: 10 }} />
           <Tooltip
-            contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: 8, fontSize: 11 }}
-            labelStyle={{ color: '#94a3b8' }}
-          />
+            contentStyle={{ backgroundColor: theme.chartTooltipBg, border: `1px solid ${theme.chartTooltipBorder}`, borderRadius: 8, fontSize: 11 }}
+            labelStyle={{ color: theme.chartTooltipLabel }} />
           <Legend wrapperStyle={{ fontSize: 10 }} />
           <ReferenceLine x={currentStep + 1} stroke="#3b82f6" strokeDasharray="3 3" strokeWidth={2} />
           {stagesToShow.map((key, i) => (
-            <Line
-              key={key}
-              type="stepAfter"
-              dataKey={getGainStageLabel(key)}
-              stroke={COLORS[i % COLORS.length]}
-              dot={false}
-              strokeWidth={1.5}
-            />
+            <Line key={key} type="stepAfter" dataKey={getGainStageLabel(key)}
+              stroke={COLORS[i % COLORS.length]} dot={false} strokeWidth={1.5} />
           ))}
         </LineChart>
       </ResponsiveContainer>
-    </div>
+    </ChartWrapper>
   );
 }

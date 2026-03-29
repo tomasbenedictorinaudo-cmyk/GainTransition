@@ -6,6 +6,7 @@ import {
 import type { TransitionResult, Channel, GainStage } from '../../types';
 import { getChannelGainChain } from '../../core/coupling';
 import { getGainStageLabel } from '../../core/serialization';
+import { useTheme } from '../../hooks/useTheme';
 
 interface Props {
   result: TransitionResult;
@@ -26,6 +27,8 @@ function colorFor(key: string): string {
 }
 
 export function ChannelDetailPanel({ result, channel, gainStages, currentStep, onClose }: Props) {
+  const { theme } = useTheme();
+  const dk = theme.mode === 'dark';
   const chainKeys = useMemo(() => getChannelGainChain(channel), [channel]);
 
   // EIRP data for this channel
@@ -79,14 +82,14 @@ export function ChannelDetailPanel({ result, channel, gainStages, currentStep, o
     : null;
 
   return (
-    <div className="bg-slate-800/80 border border-cyan-700/40 rounded-lg p-4 space-y-4">
+    <div className={`${dk ? 'bg-slate-800/80 border-cyan-700/40' : 'bg-white border-cyan-300 shadow-sm'} border rounded-lg p-4 space-y-4`}>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-sm font-semibold text-cyan-300">
             Channel: {channel.name}
           </h3>
-          <p className="text-[10px] text-slate-500">
+          <p className={`text-[10px] ${dk ? 'text-slate-500' : 'text-gray-400'}`}>
             Rx{channel.rxAntennaId} → Tx{channel.txAntennaId} | {channel.bandwidthMHz} MHz |
             Rx: {channel.rxLowFreqMHz} MHz | Tx: {channel.txLowFreqMHz} MHz
           </p>
@@ -168,12 +171,12 @@ export function ChannelDetailPanel({ result, channel, gainStages, currentStep, o
         </h4>
         <ResponsiveContainer width="100%" height={200}>
           <LineChart data={eirpData} margin={{ top: 5, right: 20, bottom: 5, left: 10 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-            <XAxis dataKey="step" stroke="#64748b" tick={{ fontSize: 10 }} />
-            <YAxis stroke="#64748b" tick={{ fontSize: 10 }} />
+            <CartesianGrid strokeDasharray="3 3" stroke={theme.chartGrid} />
+            <XAxis dataKey="step" stroke={theme.chartAxis} tick={{ fontSize: 10 }} />
+            <YAxis stroke={theme.chartAxis} tick={{ fontSize: 10 }} />
             <Tooltip
-              contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: 8, fontSize: 11 }}
-              labelStyle={{ color: '#94a3b8' }}
+              contentStyle={{ backgroundColor: theme.chartTooltipBg, border: `1px solid ${theme.chartTooltipBorder}`, borderRadius: 8, fontSize: 11 }}
+              labelStyle={{ color: theme.chartTooltipLabel }}
               formatter={(value: number) => [`${value.toFixed(3)} dB`, 'Deviation']}
             />
             <ReferenceLine y={0} stroke="#475569" strokeDasharray="5 5" />
@@ -190,12 +193,12 @@ export function ChannelDetailPanel({ result, channel, gainStages, currentStep, o
         </h4>
         <ResponsiveContainer width="100%" height={220}>
           <LineChart data={gainData} margin={{ top: 5, right: 20, bottom: 5, left: 10 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-            <XAxis dataKey="step" stroke="#64748b" tick={{ fontSize: 10 }} />
-            <YAxis stroke="#64748b" tick={{ fontSize: 10 }} />
+            <CartesianGrid strokeDasharray="3 3" stroke={theme.chartGrid} />
+            <XAxis dataKey="step" stroke={theme.chartAxis} tick={{ fontSize: 10 }} />
+            <YAxis stroke={theme.chartAxis} tick={{ fontSize: 10 }} />
             <Tooltip
-              contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: 8, fontSize: 11 }}
-              labelStyle={{ color: '#94a3b8' }}
+              contentStyle={{ backgroundColor: theme.chartTooltipBg, border: `1px solid ${theme.chartTooltipBorder}`, borderRadius: 8, fontSize: 11 }}
+              labelStyle={{ color: theme.chartTooltipLabel }}
             />
             <Legend wrapperStyle={{ fontSize: 9 }} />
             <ReferenceLine x={currentStep + 1} stroke="#3b82f6" strokeDasharray="3 3" strokeWidth={2} />
@@ -220,12 +223,12 @@ export function ChannelDetailPanel({ result, channel, gainStages, currentStep, o
         </h4>
         <ResponsiveContainer width="100%" height={180}>
           <LineChart data={tempData} margin={{ top: 5, right: 20, bottom: 5, left: 10 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-            <XAxis dataKey="step" stroke="#64748b" tick={{ fontSize: 10 }} />
-            <YAxis stroke="#64748b" tick={{ fontSize: 10 }} />
+            <CartesianGrid strokeDasharray="3 3" stroke={theme.chartGrid} />
+            <XAxis dataKey="step" stroke={theme.chartAxis} tick={{ fontSize: 10 }} />
+            <YAxis stroke={theme.chartAxis} tick={{ fontSize: 10 }} />
             <Tooltip
-              contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: 8, fontSize: 11 }}
-              labelStyle={{ color: '#94a3b8' }}
+              contentStyle={{ backgroundColor: theme.chartTooltipBg, border: `1px solid ${theme.chartTooltipBorder}`, borderRadius: 8, fontSize: 11 }}
+              labelStyle={{ color: theme.chartTooltipLabel }}
               formatter={(value: number) => [`${value.toFixed(1)} K`, 'Tsys']}
             />
             <ReferenceLine x={currentStep + 1} stroke="#3b82f6" strokeDasharray="3 3" strokeWidth={2} />
