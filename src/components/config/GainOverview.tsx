@@ -1,79 +1,66 @@
 import type { GainStage } from '../../types';
 import { getGainStageLabel } from '../../core/serialization';
+import { useTheme } from '../../hooks/useTheme';
 
 interface Props {
   gainStages: Map<string, GainStage>;
   onUpdate: (key: string, updates: Partial<GainStage>) => void;
 }
 
-function GainRow({ stageKey, stage, onUpdate }: {
+function GainRow({ stageKey, stage, onUpdate, dk }: {
   stageKey: string;
   stage: GainStage;
   onUpdate: (key: string, updates: Partial<GainStage>) => void;
+  dk: boolean;
 }) {
   const hasDelta = Math.abs(stage.targetValue - stage.currentValue) > 0.001;
+  const rowBg = hasDelta ? (dk ? 'bg-amber-900/10' : 'bg-amber-50') : '';
+  const inp = dk
+    ? 'bg-slate-700 border-slate-600 text-slate-200'
+    : 'bg-white border-gray-300 text-gray-900';
 
   return (
-    <tr className={`border-b border-slate-700/50 ${hasDelta ? 'bg-amber-900/10' : ''}`}>
-      <td className="py-1.5 px-2 text-xs font-mono text-slate-300 whitespace-nowrap">
+    <tr className={`border-b ${dk ? 'border-slate-700/50' : 'border-gray-200'} ${rowBg}`}>
+      <td className={`py-1.5 px-2 text-xs font-mono whitespace-nowrap ${dk ? 'text-slate-300' : 'text-gray-700'}`}>
         {getGainStageLabel(stageKey)}
       </td>
       <td className="py-1.5 px-1">
-        <input
-          type="number"
-          value={stage.currentValue}
-          step={stage.stepGranularity}
+        <input type="number" value={stage.currentValue} step={stage.stepGranularity}
           onChange={e => onUpdate(stageKey, { currentValue: parseFloat(e.target.value) || 0 })}
-          className="w-16 bg-slate-700 border border-slate-600 rounded px-1.5 py-0.5 text-xs text-slate-200 text-center focus:border-blue-500 focus:outline-none"
-        />
+          className={`w-16 ${inp} border rounded px-1.5 py-0.5 text-xs text-center focus:border-blue-500 focus:outline-none`} />
       </td>
       <td className="py-1.5 px-1">
-        <input
-          type="number"
-          value={stage.targetValue}
-          step={stage.stepGranularity}
+        <input type="number" value={stage.targetValue} step={stage.stepGranularity}
           onChange={e => onUpdate(stageKey, { targetValue: parseFloat(e.target.value) || 0 })}
-          className={`w-16 bg-slate-700 border rounded px-1.5 py-0.5 text-xs text-center focus:border-blue-500 focus:outline-none ${
-            hasDelta ? 'border-amber-500/50 text-amber-300' : 'border-slate-600 text-slate-200'
-          }`}
-        />
+          className={`w-16 border rounded px-1.5 py-0.5 text-xs text-center focus:border-blue-500 focus:outline-none ${
+            hasDelta
+              ? (dk ? 'bg-slate-700 border-amber-500/50 text-amber-300' : 'bg-white border-amber-400 text-amber-700')
+              : inp
+          }`} />
       </td>
       <td className="py-1.5 px-1">
-        <input
-          type="number"
-          value={stage.stepGranularity}
-          step={0.05}
-          min={0.01}
+        <input type="number" value={stage.stepGranularity} step={0.05} min={0.01}
           onChange={e => onUpdate(stageKey, { stepGranularity: parseFloat(e.target.value) || 0.1 })}
-          className="w-14 bg-slate-700 border border-slate-600 rounded px-1.5 py-0.5 text-xs text-slate-200 text-center focus:border-blue-500 focus:outline-none"
-        />
+          className={`w-14 ${inp} border rounded px-1.5 py-0.5 text-xs text-center focus:border-blue-500 focus:outline-none`} />
       </td>
       <td className="py-1.5 px-1">
-        <input
-          type="number"
-          value={stage.lowerThreshold}
-          step={1}
+        <input type="number" value={stage.lowerThreshold} step={1}
           onChange={e => onUpdate(stageKey, { lowerThreshold: parseFloat(e.target.value) || 0 })}
-          className="w-14 bg-slate-700 border border-slate-600 rounded px-1.5 py-0.5 text-xs text-slate-200 text-center focus:border-blue-500 focus:outline-none"
-        />
+          className={`w-14 ${inp} border rounded px-1.5 py-0.5 text-xs text-center focus:border-blue-500 focus:outline-none`} />
       </td>
       <td className="py-1.5 px-1">
-        <input
-          type="number"
-          value={stage.upperThreshold}
-          step={1}
+        <input type="number" value={stage.upperThreshold} step={1}
           onChange={e => onUpdate(stageKey, { upperThreshold: parseFloat(e.target.value) || 0 })}
-          className="w-14 bg-slate-700 border border-slate-600 rounded px-1.5 py-0.5 text-xs text-slate-200 text-center focus:border-blue-500 focus:outline-none"
-        />
+          className={`w-14 ${inp} border rounded px-1.5 py-0.5 text-xs text-center focus:border-blue-500 focus:outline-none`} />
       </td>
       <td className="py-1.5 px-2 text-xs text-center font-mono">
         {hasDelta ? (
-          <span className="text-amber-400">
+          <span className={dk ? 'text-amber-400' : 'text-amber-600'}>
             {(stage.targetValue - stage.currentValue) > 0 ? '+' : ''}
             {(stage.targetValue - stage.currentValue).toFixed(2)}
           </span>
         ) : (
-          <span className="text-slate-600">0</span>
+          <span className={dk ? 'text-slate-600' : 'text-gray-300'}>0</span>
         )}
       </td>
     </tr>
@@ -81,7 +68,9 @@ function GainRow({ stageKey, stage, onUpdate }: {
 }
 
 export function GainOverview({ gainStages, onUpdate }: Props) {
-  // Group by type
+  const { theme } = useTheme();
+  const dk = theme.mode === 'dark';
+
   const groups: Record<string, [string, GainStage][]> = {
     'Receive Chain': [],
     'Transmit Chain': [],
@@ -97,15 +86,15 @@ export function GainOverview({ gainStages, onUpdate }: Props) {
 
   return (
     <div className="space-y-4">
-      <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">Gain Stages</h3>
+      <h3 className={`text-sm font-semibold uppercase tracking-wider ${dk ? 'text-slate-300' : 'text-gray-700'}`}>Gain Stages</h3>
 
       {Object.entries(groups).map(([groupName, stages]) => (
         <div key={groupName}>
-          <h4 className="text-xs text-slate-500 mb-1 font-medium">{groupName}</h4>
+          <h4 className={`text-xs mb-1 font-medium ${dk ? 'text-slate-500' : 'text-gray-400'}`}>{groupName}</h4>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="text-slate-500 uppercase tracking-wider">
+                <tr className={`uppercase tracking-wider ${dk ? 'text-slate-500' : 'text-gray-400'}`}>
                   <th className="text-left py-1 px-2 font-medium">Stage</th>
                   <th className="py-1 px-1 font-medium">Current</th>
                   <th className="py-1 px-1 font-medium">Target</th>
@@ -117,7 +106,7 @@ export function GainOverview({ gainStages, onUpdate }: Props) {
               </thead>
               <tbody>
                 {stages.map(([key, stage]) => (
-                  <GainRow key={key} stageKey={key} stage={stage} onUpdate={onUpdate} />
+                  <GainRow key={key} stageKey={key} stage={stage} onUpdate={onUpdate} dk={dk} />
                 ))}
               </tbody>
             </table>
