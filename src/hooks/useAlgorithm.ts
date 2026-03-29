@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import type { AlgorithmParams, TransitionResult, PayloadConfig } from '../types';
 import { runCCGS, DEFAULT_PARAMS } from '../algorithm/ccgs';
 
@@ -9,43 +9,53 @@ export function useAlgorithm() {
   const [isRunning, setIsRunning] = useState(false);
 
   const lastConfigRef = useRef<PayloadConfig | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasRunRef = useRef(false);
 
-  const executeRun = useCallback((config: PayloadConfig, algorithmParams: AlgorithmParams) => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
+  const run = useCallback((config: PayloadConfig) => {
+    lastConfigRef.current = config;
+    hasRunRef.current = true;
     setIsRunning(true);
-    debounceRef.current = setTimeout(() => {
+    // Defer to let UI show "running" state
+    setTimeout(() => {
       try {
-        const res = runCCGS(config.channels, config.gainStages, algorithmParams);
+        const res = runCCGS(config.channels, config.gainStages, params);
         setResult(res);
         setCurrentStep(res.steps.length > 0 ? res.steps.length - 1 : 0);
       } finally {
         setIsRunning(false);
       }
     }, 10);
-  }, []);
+  }, [params]);
 
-  const run = useCallback((config: PayloadConfig) => {
-    lastConfigRef.current = config;
-    executeRun(config, params);
-  }, [params, executeRun]);
+  // Auto-rerun when params change, but only if we've run before
+  // Use refs to avoid stale closures — hasRunRef and lastConfigRef are always current
+  useEffect(() => {
+    if (!hasRunRef.current || !lastConfigRef.current) return;
+
+    const config = lastConfigRef.current;
+    setIsRunning(true);
+    const timer = setTimeout(() => {
+      try {
+        const res = runCCGS(config.channels, config.gainStages, params);
+        setResult(res);
+        setCurrentStep(res.steps.length > 0 ? res.steps.length - 1 : 0);
+      } finally {
+        setIsRunning(false);
+      }
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [params]);
 
   const reset = useCallback(() => {
     setResult(null);
     setCurrentStep(0);
     lastConfigRef.current = null;
+    hasRunRef.current = false;
   }, []);
 
   const updateParams = useCallback((updates: Partial<AlgorithmParams>) => {
-    setParams(prev => {
-      const next = { ...prev, ...updates };
-      // Auto-rerun if we have a previous config
-      if (lastConfigRef.current) {
-        executeRun(lastConfigRef.current, next);
-      }
-      return next;
-    });
-  }, [executeRun]);
+    setParams(prev => ({ ...prev, ...updates }));
+  }, []);
 
   return {
     params,
