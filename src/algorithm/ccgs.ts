@@ -382,7 +382,12 @@ function filterByEirpLimits(
   });
 }
 
-/** Filter by EIRP deviation limits on post-G4-correction state */
+/**
+ * Filter by EIRP deviation limits checking ALL intermediate states
+ * in the G4-compensated sequence. Both the post-primary state (before G4)
+ * and the post-G4-correction state must satisfy the limits, because both
+ * are recorded as separate transition steps.
+ */
 function filterByEirpLimitsWithG4(
   candidates: CandidateMove[],
   gainValues: Record<string, number>,
@@ -396,17 +401,74 @@ function filterByEirpLimitsWithG4(
   const posLimit = params.maxPositiveEirpDeviation;
 
   return candidates.filter(move => {
-    const postGains = simulateWithG4Correction(
-      move, gainValues, channels, initialEirp, granularities, gainStages, params.g4CompensationMode
-    );
-    const eirp = computeAllChannelEirp(channels, postGains);
-    for (const ch of channels) {
-      const dev = eirp[ch.id] - initialEirp[ch.id];
-      if (negLimit !== null && dev < -(negLimit + 0.001)) return false;
-      if (posLimit !== null && dev > posLimit + 0.001) return false;
+    // Check each intermediate state in the two-step sequence
+
+    if (params.g4CompensationMode === 'before') {
+      // Sequence: G4 pre-correction → primary step
+      // State 1: after G4 pre-correction (before primary)
+      const preGains = { ...gainValues };
+      const afterPrimary = { ...gainValues };
+      for (const step of move.steps) {
+        afterPrimary[step.gainStageKey] = (afterPrimary[step.gainStageKey] ?? 0) + step.delta;
+      }
+      const beforeEirp = computeAllChannelEirp(channels, gainValues);
+      const afterEirp = computeAllChannelEirp(channels, afterPrimary);
+      const g4Correction = buildG4StepsFromDeviation(beforeEirp, afterEirp, channels, gainValues, granularities, gainStages);
+      if (g4Correction) {
+        for (const step of g4Correction.steps) {
+          preGains[step.gainStageKey] = (preGains[step.gainStageKey] ?? 0) + step.delta;
+        }
+      }
+      // Check state after G4 pre-correction
+      const eirp1 = computeAllChannelEirp(channels, preGains);
+      if (!checkEirpWithinLimits(eirp1, initialEirp, channels, negLimit, posLimit)) return false;
+
+      // State 2: after primary step
+      for (const step of move.steps) {
+        preGains[step.gainStageKey] = (preGains[step.gainStageKey] ?? 0) + step.delta;
+      }
+      const eirp2 = computeAllChannelEirp(channels, preGains);
+      if (!checkEirpWithinLimits(eirp2, initialEirp, channels, negLimit, posLimit)) return false;
+
+    } else {
+      // Sequence: primary step → G4 correction
+      // State 1: after primary step (before G4)
+      const tempGains = { ...gainValues };
+      for (const step of move.steps) {
+        tempGains[step.gainStageKey] = (tempGains[step.gainStageKey] ?? 0) + step.delta;
+      }
+      const eirp1 = computeAllChannelEirp(channels, tempGains);
+      if (!checkEirpWithinLimits(eirp1, initialEirp, channels, negLimit, posLimit)) return false;
+
+      // State 2: after G4 correction
+      const currentEirp = computeAllChannelEirp(channels, tempGains);
+      const g4Correction = buildG4StepsFromDeviation(initialEirp, currentEirp, channels, tempGains, granularities, gainStages);
+      if (g4Correction) {
+        for (const step of g4Correction.steps) {
+          tempGains[step.gainStageKey] = (tempGains[step.gainStageKey] ?? 0) + step.delta;
+        }
+      }
+      const eirp2 = computeAllChannelEirp(channels, tempGains);
+      if (!checkEirpWithinLimits(eirp2, initialEirp, channels, negLimit, posLimit)) return false;
     }
+
     return true;
   });
+}
+
+function checkEirpWithinLimits(
+  eirp: Record<string, number>,
+  initialEirp: Record<string, number>,
+  channels: Channel[],
+  negLimit: number | null,
+  posLimit: number | null
+): boolean {
+  for (const ch of channels) {
+    const dev = eirp[ch.id] - initialEirp[ch.id];
+    if (negLimit !== null && dev < -(negLimit + 0.001)) return false;
+    if (posLimit !== null && dev > posLimit + 0.001) return false;
+  }
+  return true;
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -480,13 +542,15 @@ function buildEirpErrorMessageWithG4(
 ): string {
   let bestWorstDev = Infinity;
   for (const move of powerFeasibleCandidates) {
-    const postGains = simulateWithG4Correction(
-      move, gainValues, channels, initialEirp, granularities, gainStages, params.g4CompensationMode
-    );
-    const eirp = computeAllChannelEirp(channels, postGains);
+    // Check the intermediate state (primary step without G4) — this is the bottleneck
+    const tempGains = { ...gainValues };
+    for (const step of move.steps) {
+      tempGains[step.gainStageKey] = (tempGains[step.gainStageKey] ?? 0) + step.delta;
+    }
+    const intermediateEirp = computeAllChannelEirp(channels, tempGains);
     let worstDev = 0;
     for (const ch of channels) {
-      const dev = Math.abs(eirp[ch.id] - initialEirp[ch.id]);
+      const dev = Math.abs(intermediateEirp[ch.id] - initialEirp[ch.id]);
       if (dev > worstDev) worstDev = dev;
     }
     if (worstDev < bestWorstDev) bestWorstDev = worstDev;
