@@ -11,13 +11,13 @@ export interface GainStageDefaults {
 }
 
 const DEFAULTS: Record<string, GainStageDefaults> = {
-  G1: { currentValue: 30, targetValue: 30, stepGranularity: 0.5, upperThreshold: -15, lowerThreshold: -30 },
-  G2: { currentValue: 10, targetValue: 10, stepGranularity: 0.25, upperThreshold: -5, lowerThreshold: -25 },
-  G3: { currentValue: 5, targetValue: 5, stepGranularity: 0.25, upperThreshold: 0, lowerThreshold: -20 },
-  G4: { currentValue: 5, targetValue: 5, stepGranularity: 0.25, upperThreshold: 5, lowerThreshold: -15 },
-  G5: { currentValue: 10, targetValue: 10, stepGranularity: 0.25, upperThreshold: 15, lowerThreshold: -5 },
-  G6: { currentValue: 10, targetValue: 10, stepGranularity: 0.25, upperThreshold: 25, lowerThreshold: 5 },
-  G7: { currentValue: 40, targetValue: 40, stepGranularity: 0.5, upperThreshold: 65, lowerThreshold: 45 },
+  G1: { currentValue: 30, targetValue: 30, stepGranularity: 0.5, upperThreshold: -10, lowerThreshold: -40 },
+  G2: { currentValue: 10, targetValue: 10, stepGranularity: 0.25, upperThreshold: 0, lowerThreshold: -35 },
+  G3: { currentValue: 5, targetValue: 5, stepGranularity: 0.25, upperThreshold: 10, lowerThreshold: -30 },
+  G4: { currentValue: 5, targetValue: 5, stepGranularity: 0.25, upperThreshold: 10, lowerThreshold: -25 },
+  G5: { currentValue: 10, targetValue: 10, stepGranularity: 0.25, upperThreshold: 20, lowerThreshold: -15 },
+  G6: { currentValue: 10, targetValue: 10, stepGranularity: 0.25, upperThreshold: 30, lowerThreshold: -5 },
+  G7: { currentValue: 40, targetValue: 40, stepGranularity: 0.5, upperThreshold: 75, lowerThreshold: 30 },
 };
 
 function makeStage(id: GainStageId, overrides?: Partial<GainStageDefaults>): GainStage {
