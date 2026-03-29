@@ -29,7 +29,7 @@ export function usePayloadConfig() {
         txLowFreqMHz: 11700,
         ipfd: -120,
         eirpTarget: 45,
-        antennaNoiseTemp: 200,
+        antennaNoiseTemp: 275,
       };
       const channels = [...prev.channels, newChannel];
       const gainStages = createGainStages(channels, prev.gainStages);
