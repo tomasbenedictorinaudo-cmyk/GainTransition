@@ -35,7 +35,7 @@ export function generateCandidateMoves(
   // Group pending changes by stage type, storing full remaining info
   const pendingByType = new Map<string, { key: string; remaining: number; gran: number; direction: 1 | -1 }[]>();
 
-  for (const key of Object.keys(targetValues)) {
+  for (const key of Object.keys(targetValues).sort()) {
     const current = gainValues[key];
     const target = targetValues[key];
     const gran = granularities[key];
